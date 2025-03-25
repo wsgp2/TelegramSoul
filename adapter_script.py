@@ -18,8 +18,8 @@ if not API_KEY:
 def adapt_analysis_format():
     print("\n=== Адаптация формата данных анализа для последующих этапов ===\n")
     
-    # Пути к файлам
-    repo_dir = "/tmp/TelegramSoul"
+    # Пути к файлам - исправляем жестко заданный путь /tmp/TelegramSoul на относительный путь
+    repo_dir = os.path.dirname(os.path.abspath(__file__))
     reports_dir = os.path.join(repo_dir, "data", "reports")
     analysis_file = os.path.join(reports_dir, "all_chats_analysis.json")
     adapted_file = os.path.join(reports_dir, "all_chats_topics_adapted.json")

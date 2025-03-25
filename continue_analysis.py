@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Добавляем путь к папке проекта в PYTHONPATH
-sys.path.append('/tmp/TelegramSoul')
+# Используем текущую директорию вместо жестко закодированного пути
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Загружаем переменные окружения из .env файла
 load_dotenv()
@@ -61,12 +61,12 @@ async def continue_analysis():
         # Проверяем, что результат не пустой
         if not monetization_result or not isinstance(monetization_result, dict) or not monetization_result.get('monetization_strategies'):
             # Проверяем, есть ли файл с логами
-            recent_logs = [f for f in os.listdir(os.path.join('/tmp/TelegramSoul', 'logs')) 
+            recent_logs = [f for f in os.listdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')) 
                          if f.startswith('json_extraction_') and f.endswith('.txt')]
             if recent_logs:
                 # Берем самый последний лог
                 recent_logs.sort(reverse=True)
-                log_path = os.path.join('/tmp/TelegramSoul', 'logs', recent_logs[0])
+                log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', recent_logs[0])
                 print(f"Пытаемся разобрать JSON из лога: {log_path}")
                 
                 with open(log_path, 'r', encoding='utf-8') as f:
