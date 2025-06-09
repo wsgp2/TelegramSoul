@@ -1442,6 +1442,7 @@ JSON формат:
         
         beautiful_output = []
         beautiful_output.append("🎯 **АНАЛИЗ ВАШИХ ИНТЕРЕСОВ И ТЕМ**\n")
+        beautiful_output.append("💡 *Мы разделили историю вашего общения на 15 временных периодов и проанализировали, в каких из них обсуждалась каждая тема*\n")
         beautiful_output.append("=" * 50 + "\n")
         
         # Сортируем темы по нормализованному проценту
@@ -1467,30 +1468,34 @@ JSON формат:
             # Ограничиваем количество периодов общим количеством
             periods_count = min(periods_count, total_periods)
             
-            # Определяем статус важности
+            # Определяем статус важности и создаем понятные описания
             if periods_count >= 12:
-                status = "🔥 ОСНОВНОЙ ИНТЕРЕС"
+                status = "🔥 ПОСТОЯННАЯ ТЕМА"
+                time_description = "Обсуждается практически всегда"
                 coverage_percent = int((periods_count / total_periods) * 100)
             elif periods_count >= 8:
-                status = "⭐ ВАЖНАЯ ТЕМА"
+                status = "⭐ ЧАСТАЯ ТЕМА"
+                time_description = "Обсуждается регулярно"
                 coverage_percent = int((periods_count / total_periods) * 100)
             elif periods_count >= 5:
                 status = "💡 ПЕРИОДИЧЕСКАЯ ТЕМА"
+                time_description = "Иногда обсуждается"
                 coverage_percent = int((periods_count / total_periods) * 100)
             else:
                 status = "📝 РЕДКАЯ ТЕМА"
+                time_description = "Редко упоминается"
                 coverage_percent = int((periods_count / total_periods) * 100)
             
-            # Создаем визуальную шкалу
+            # Создаем визуальную шкалу с пояснением
             filled_dots = "●" * periods_count
             empty_dots = "○" * (total_periods - periods_count)
             visual_scale = filled_dots + empty_dots
             
-            # Форматируем тему
+            # Форматируем тему с понятными объяснениями
             beautiful_output.append(f"🔥 **{topic_name}**")
-            beautiful_output.append(f"📌 {status} ({coverage_percent}% времени)")
-            beautiful_output.append(f"📊 {visual_scale} {periods_count}/{total_periods} периодов")
-            beautiful_output.append(f"⚡ Интенсивность: {normalized_percentage:.1f}% при обсуждении")
+            beautiful_output.append(f"📌 {status} - {time_description}")
+            beautiful_output.append(f"📊 Частота: {visual_scale} (присутствует в {periods_count} из {total_periods} временных отрезков)")
+            beautiful_output.append(f"⚡ Активность: {normalized_percentage:.1f}% от всех ваших сообщений")
             
             # Добавляем описание если есть
             if topic.get('description'):
@@ -1498,12 +1503,16 @@ JSON формат:
             
             beautiful_output.append("")  # Пустая строка между темами
         
-        # Добавляем общую статистику с нормализованными данными
+        # Добавляем понятную статистику
         normalized_total = sum(t.get('normalized_percentage', 0) for t in topics)
-        beautiful_output.append("📈 **ОБЩАЯ СТАТИСТИКА**")
-        beautiful_output.append(f"🎯 Проанализировано тем: {len(topics)}")
-        beautiful_output.append(f"📊 Покрытие интересов: {normalized_total:.1f}%")
-        beautiful_output.append(f"⏱️ Анализируемых периодов: {total_periods}")
+        beautiful_output.append("📈 **ИТОГОВАЯ СТАТИСТИКА**")
+        beautiful_output.append(f"🎯 Найдено основных тем для обсуждения: {len(topics)}")
+        beautiful_output.append(f"📊 Охват ваших интересов: {normalized_total:.1f}% сообщений проанализировано")
+        beautiful_output.append(f"⏱️ Период анализа: вся история разделена на {total_periods} временных отрезков")
+        beautiful_output.append("\n💡 **Как читать отчет:**")
+        beautiful_output.append("• ● = тема активно обсуждалась в этом периоде")
+        beautiful_output.append("• ○ = тема не обсуждалась в этом периоде")
+        beautiful_output.append("• Чем больше ●, тем чаще вы говорите на эту тему")
         
         return "\n".join(beautiful_output)
 
@@ -1581,15 +1590,24 @@ JSON формат:
             
             top_topics = sorted(topics, key=lambda x: x.get('normalized_percentage', 0), reverse=True)[:3]
             
-            report_lines.append("На основе анализа ваших интересов мы рекомендуем:")
+            report_lines.append("На основе анализа ваших интересов и активности в чате мы рекомендуем:")
             report_lines.append("")
             
             for i, topic in enumerate(top_topics, 1):
                 topic_name = topic.get('name', f'Тема {i}')
                 percentage = topic.get('normalized_percentage', 0)
-                report_lines.append(f"**{i}. Развивайте интерес к теме \"{topic_name}\"**")
-                report_lines.append(f"   • Эта тема занимает {percentage:.1f}% ваших обсуждений")
-                report_lines.append(f"   • Высокий потенциал для углубления знаний")
+                
+                # Определяем рекомендацию на основе процента
+                if percentage >= 20:
+                    recommendation = "Это ваша основная область интереса - продолжайте развиваться в этом направлении"
+                elif percentage >= 15:
+                    recommendation = "Вы часто обсуждаете эту тему - есть потенциал для углубления знаний"
+                else:
+                    recommendation = "Периодически возвращаетесь к этой теме - можно изучить глубже"
+                
+                report_lines.append(f"**{i}. Фокус на теме \"{topic_name}\"**")
+                report_lines.append(f"   • {percentage:.1f}% ваших сообщений касается этой темы")
+                report_lines.append(f"   • {recommendation}")
                 report_lines.append("")
         
         # Подпись
