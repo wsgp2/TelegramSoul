@@ -97,25 +97,25 @@ async def run_complete_soul_analysis(analyzer, chat_paths, user_name="Польз
             
             # Показываем краткую статистику
             topics_count = len(complete_result.get('topics', []))
-            monetization_count = len(complete_result.get('monetization_analysis', []))
+            expertise_count = len(complete_result.get('expertise_analysis', []))
             psychological_data = complete_result.get('psychological_analysis', {})
             patterns_count = len(psychological_data.get('behavior_patterns', []))
             
             print(f"📊 ИТОГОВАЯ СТАТИСТИКА:")
             print(f"   🎯 Тем: {topics_count}")
-            print(f"   💰 Возможностей монетизации: {monetization_count}")
+            print(f"   💰 Экспертных областей: {expertise_count}")
             print(f"   🧠 Психологических паттернов: {patterns_count}")
             
-            # Показываем топ темы с коммерческим потенциалом
-            monetization_analysis = complete_result.get('monetization_analysis', [])
-            high_potential = [m for m in monetization_analysis if m.get('commercial_score') == 'high']
+            # Показываем топ темы с экспертностью
+            expertise_analysis = complete_result.get('expertise_analysis', [])
+            expert_level = [e for e in expertise_analysis if e.get('expertise_level') == 'expert']
             
-            if high_potential:
-                print(f"\n🔥 ТОП ВОЗМОЖНОСТИ ДЛЯ ЗАРАБОТКА:")
-                for analysis in high_potential[:3]:
+            if expert_level:
+                print(f"\n🏆 ОБЛАСТИ ЭКСПЕРТНОСТИ:")
+                for analysis in expert_level[:3]:
                     topic = analysis.get('topic', 'Неизвестная тема')
-                    revenue = analysis.get('realistic_revenue', 'не оценено')
-                    print(f"   💵 {topic}: {revenue}")
+                    indicators = analysis.get('expertise_indicators', 'не определены')
+                    print(f"   🎯 {topic}: {indicators}")
             
             # Показываем ключ трансформации
             transformation_key = psychological_data.get('transformation_key', '')

@@ -407,7 +407,7 @@ class ChatGPTAnalyzer:
         
         if not aggregated_topics or not aggregated_topics.get('topics'):
             logger.error("Нет тем для глубокого анализа")
-            return {"monetization_analysis": [], "psychological_analysis": {}}
+            return {"expertise_analysis": [], "psychological_analysis": {}}
         
         # Подготавливаем данные для анализа
         import json
@@ -429,7 +429,7 @@ class ChatGPTAnalyzer:
             
         except Exception as e:
             logger.error(f"Ошибка при глубоком анализе: {e}")
-            return {"monetization_analysis": [], "psychological_analysis": {}}
+            return {"expertise_analysis": [], "psychological_analysis": {}}
     
     def extract_json_from_text(self, text):
         """Извлекает JSON из текста с использованием различных стратегий"""
@@ -1158,12 +1158,12 @@ JSON формат:
         
         if not deep_analysis_result:
             logger.error("Не удалось выполнить глубокий анализ")
-            deep_analysis_result = {"monetization_analysis": [], "psychological_analysis": {}}
+            deep_analysis_result = {"expertise_analysis": [], "psychological_analysis": {}}
         
         # Объединяем результаты
         complete_result = {
             "topics": all_topics_data.get('topics', []),
-            "monetization_analysis": deep_analysis_result.get('monetization_analysis', []),
+            "expertise_analysis": deep_analysis_result.get('expertise_analysis', []),
             "psychological_analysis": deep_analysis_result.get('psychological_analysis', {})
         }
         
@@ -1652,45 +1652,64 @@ JSON формат:
             report_lines.append("○ = тема не обсуждалась в этом периоде")
             report_lines.append("")
         
-        # 💰 УРОВЕНЬ 2: МОНЕТИЗАЦИЯ
-        monetization_data = unified_data.get('monetization_analysis', [])
-        if monetization_data:
+        # 💰 УРОВЕНЬ 2: АНАЛИЗ ЭКСПЕРТНОСТИ И НИШ
+        expertise_data = unified_data.get('expertise_analysis', [])
+        if expertise_data:
             report_lines.append("\n" + "═" * 70 + "\n")
-            report_lines.append("## 💰 УРОВЕНЬ 2: ВОЗМОЖНОСТИ МОНЕТИЗАЦИИ")
+            report_lines.append("## 💰 УРОВЕНЬ 2: ЭКСПЕРТНОСТЬ И НИШИ")
             report_lines.append("")
-            report_lines.append("На основе анализа ваших интересов мы выявили следующие возможности для заработка:")
+            report_lines.append("На основе глубинного анализа ваших сообщений мы определили ваш уровень экспертности:")
             report_lines.append("")
             
-            for analysis in monetization_data:
+            # Сортируем по уровню экспертности
+            expertise_order = {'expert': 3, 'advanced': 2, 'beginner': 1}
+            sorted_expertise = sorted(
+                expertise_data, 
+                key=lambda x: expertise_order.get(x.get('expertise_level', 'beginner'), 0), 
+                reverse=True
+            )
+            
+            for analysis in sorted_expertise:
                 topic_name = analysis.get('topic', 'Неизвестная тема')
-                commercial_score = analysis.get('commercial_score', 'low')
-                realistic_revenue = analysis.get('realistic_revenue', 'не оценено')
+                expertise_level = analysis.get('expertise_level', 'beginner')
+                expertise_indicators = analysis.get('expertise_indicators', 'не определены')
+                commercial_potential = analysis.get('commercial_potential', 'low')
+                monetization_readiness = analysis.get('monetization_readiness', 'long_term')
                 methods = analysis.get('monetization_methods', [])
                 
-                # Определяем emoji для коммерческого потенциала
-                if commercial_score == 'high':
-                    potential_emoji = "🔥"
-                    potential_text = "ВЫСОКИЙ потенциал"
-                elif commercial_score == 'medium':
-                    potential_emoji = "⭐"
-                    potential_text = "СРЕДНИЙ потенциал"
+                # Определяем emoji для уровня экспертности
+                if expertise_level == 'expert':
+                    expertise_emoji = "🏆"
+                    expertise_text = "ЭКСПЕРТ"
+                elif expertise_level == 'advanced':
+                    expertise_emoji = "📈"
+                    expertise_text = "ПРОДВИНУТЫЙ"
                 else:
-                    potential_emoji = "💡"
-                    potential_text = "НИЗКИЙ потенциал"
+                    expertise_emoji = "🌱"
+                    expertise_text = "НАЧИНАЮЩИЙ"
                 
-                report_lines.append(f"{potential_emoji} **{topic_name}**")
-                report_lines.append(f"💰 Коммерческий потенциал: {potential_text}")
-                report_lines.append(f"💵 Реалистичный доход: {realistic_revenue}")
+                # Определяем готовность к монетизации
+                if monetization_readiness == 'ready':
+                    readiness_text = "🚀 Готов к монетизации"
+                elif monetization_readiness == 'need_development':
+                    readiness_text = "🔧 Требует развития"
+                else:
+                    readiness_text = "⏳ Долгосрочная перспектива"
+                
+                report_lines.append(f"{expertise_emoji} **{topic_name}** - {expertise_text}")
+                report_lines.append(f"💡 **Признаки экспертности:** {expertise_indicators}")
+                report_lines.append(f"💰 **Коммерческий потенциал ниши:** {commercial_potential}")
+                report_lines.append(f"⚡ **Готовность к монетизации:** {readiness_text}")
                 
                 if methods:
-                    report_lines.append("🛍️ **Способы заработка:**")
+                    report_lines.append("🛍️ **Способы монетизации экспертности:**")
                     for method in methods[:3]:  # Топ 3 метода
                         method_name = method.get('method', 'Способ заработка')
-                        time_to_profit = method.get('time_to_profit', 'неизвестно')
-                        complexity = method.get('implementation_complexity', 'неизвестна')
+                        time_to_monetization = method.get('time_to_monetization', 'неизвестно')
+                        development_needed = method.get('development_needed', 'неизвестно')
                         report_lines.append(f"   • **{method_name}**")
-                        report_lines.append(f"     ⏰ Срок окупаемости: {time_to_profit}")
-                        report_lines.append(f"     🔧 Сложность: {complexity}")
+                        report_lines.append(f"     ⏰ Время до монетизации: {time_to_monetization}")
+                        report_lines.append(f"     📚 Нужно развить: {development_needed}")
                 
                 report_lines.append("")
         
@@ -1829,12 +1848,12 @@ FINAL_ANALYSIS_PROMPT = """
 
 ---
 
-💰 УРОВЕНЬ 1: СТРАТЕГИИ МОНЕТИЗАЦИИ
-Для каждой темы с высоким потенциалом заработка:
-1. Оцени коммерческий потенциал (high/medium/low)
-2. Предложи 2-3 конкретных способа заработка
-3. Укажи реалистичный доход в рублях (например: "25,000-50,000 руб/мес")
-4. Определи срок окупаемости и сложность реализации
+💰 УРОВЕНЬ 1: АНАЛИЗ ЭКСПЕРТНОСТИ И НИШ
+Для каждой темы проанализируй:
+1. Глубину экспертности пользователя (expert/advanced/beginner)
+2. Оцени коммерческий потенциал ниши (high/medium/low)
+3. Предложи 2-3 конкретных способа монетизации экспертности
+4. Определи срок развития до уровня монетизации и сложность входа
 
 🧠 УРОВЕНЬ 2: ПСИХОЛОГИЧЕСКИЕ ПАТТЕРНЫ И ТРАНСФОРМАЦИЯ
 На основе всей совокупности тем и интересов:
@@ -1849,17 +1868,19 @@ FINAL_ANALYSIS_PROMPT = """
 
 📤 ВЕРНИ РЕЗУЛЬТАТ В JSON:
 {{
-  "monetization_analysis": [
+  "expertise_analysis": [
     {{
       "topic": "Название темы",
-      "commercial_score": "high/medium/low",
-      "realistic_revenue": "25,000-50,000 руб/мес",
+      "expertise_level": "expert/advanced/beginner",
+      "expertise_indicators": "Конкретные признаки экспертности из сообщений",
+      "commercial_potential": "high/medium/low",
+      "monetization_readiness": "ready/need_development/long_term",
       "monetization_methods": [
         {{
           "method": "Название способа",
           "description": "Подробное описание",
-          "time_to_profit": "2-4 месяца",
-          "implementation_complexity": "низкая/средняя/высокая"
+          "time_to_monetization": "2-4 месяца",
+          "development_needed": "Что нужно развить для монетизации"
         }}
       ]
     }}
