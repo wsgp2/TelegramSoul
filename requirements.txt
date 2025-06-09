@@ -1,22 +1,25 @@
+# Основные зависимости (упрощенная версия)
 telethon
 python-dotenv
 tqdm
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
 loguru
-sentence-transformers
-chromadb
 openai
-python-telegram-bot
-httpx>=0.24.0
-textblob>=0.15.3
-matplotlib>=3.5.0
-seaborn>=0.11.2
-wordcloud>=1.8.1
-scikit-learn>=1.0.2
-nltk>=3.6.5
-gensim>=4.2.0
-pandas>=1.3.5
-numpy>=1.21.0
-datetime
+httpx
+textblob
+scikit-learn
+pandas
+numpy
+
+# Убрали избыточные зависимости:
+# google-api-python-client (не используется)
+# google-auth-httplib2 (не используется) 
+# google-auth-oauthlib (не используется)
+# sentence-transformers (ChromaDB убрали)
+# chromadb (избыточно)
+# python-telegram-bot (дублирование с telethon)
+# matplotlib (визуализация убрана)
+# seaborn (визуализация убрана)
+# wordcloud (визуализация убрана)
+# nltk (избыточно для базового анализа)
+# gensim (избыточно)
+# datetime (встроенный модуль)

@@ -91,35 +91,36 @@ async def analyze_chat(analyzer, chat_path, limit=1000):
         topics_file = analyzer.save_results_to_json(topics_result, f"{chat_name}_topics_analysis")
         print(f"Результаты анализа тем сохранены: {topics_file}")
         
-        # Анализируем стратегии монетизации
-        monetization_result = await analyzer.develop_monetization_strategies(topics_result)
-        if monetization_result and monetization_result.get('monetization_strategies'):
-            # Сохраняем результаты анализа монетизации
-            monetization_file = analyzer.save_results_to_json(monetization_result, f"{chat_name}_monetization_analysis")
-            print(f"Результаты анализа монетизации сохранены: {monetization_file}")
+        # Оцениваем коммерческий потенциал тем
+        commercial_assessment = await analyzer.assess_commercial_potential(topics_result)
+        if commercial_assessment and commercial_assessment.get('commercial_assessment'):
+            # Сохраняем результаты оценки коммерческого потенциала
+            assessment_file = analyzer.save_results_to_json(commercial_assessment, f"{chat_name}_commercial_assessment")
+            print(f"Результаты оценки коммерческого потенциала сохранены: {assessment_file}")
             
-            # Создаем бизнес-план
-            business_plan = await analyzer.create_business_plan(topics_result, monetization_result)
-            if business_plan:
-                # Сохраняем бизнес-план
-                business_plan_file = analyzer.save_results_to_json(business_plan, f"{chat_name}_business_plan")
-                print(f"Бизнес-план сохранен: {business_plan_file}")
-                
-                # Генерируем отчет
-                report = analyzer.generate_report(topics_result, monetization_result, business_plan)
-                if report:
-                    # Сохраняем отчет
-                    report_path = os.path.join(analyzer.output_dir, f"{chat_name}_report.md")
-                    with open(report_path, 'w', encoding='utf-8') as f:
-                        f.write(report)
-                    print(f"Отчет сохранен: {report_path}")
-                
-                # Создаем визуализации
-                visualizations = analyzer.visualize_topics(topics_result)
-                if visualizations:
-                    print("\nСозданы визуализации:")
-                    for vis in visualizations:
-                        print(f"- {vis}")
+            # Генерируем отчет
+            report = analyzer.generate_report(topics_result, commercial_assessment)
+            if report:
+                # Сохраняем отчет
+                report_path = os.path.join(analyzer.output_dir, f"{chat_name}_report.md")
+                with open(report_path, 'w', encoding='utf-8') as f:
+                    f.write(report)
+                print(f"Отчет сохранен: {report_path}")
+            
+            # 🎉 ГЕНЕРИРУЕМ ГОТОВЫЙ ОТЧЕТ ДЛЯ КЛИЕНТА
+            print("Создаем готовый отчет для клиента...")
+            client_report = analyzer.generate_comprehensive_client_report(topics_result, commercial_assessment, chat_name)
+            
+            # Сохраняем готовый отчет для клиента
+            client_report_path = os.path.join(analyzer.output_dir, f"{chat_name}_ГОТОВЫЙ_ОТЧЕТ_ДЛЯ_КЛИЕНТА.md")
+            with open(client_report_path, 'w', encoding='utf-8') as f:
+                f.write(client_report)
+            print(f"🎉 ГОТОВЫЙ ОТЧЕТ ДЛЯ КЛИЕНТА сохранен: {client_report_path}")
+            
+            # Создаем простое резюме вместо визуализаций
+            summary = analyzer.create_simple_summary(topics_result)
+            if summary:
+                print("\n" + summary)
         
         print(f"\nАнализ чата {chat_name} успешно завершен!")
         print(f"Найдено {len(topics_result.get('topics', []))} основных тем")
@@ -171,14 +172,50 @@ async def main():
     
     args = parser.parse_args()
     
-    # Создаем экземпляр анализатора с API ключом
-    analyzer = ChatGPTAnalyzer(api_key=API_KEY)
+    # 🚀 Список API ключей для параллельной обработки из переменных окружения
+    api_keys = []
+    for i in range(1, 6):  # API_KEY_1 до API_KEY_5
+        key = os.getenv(f'API_KEY_{i}')
+        if key:
+            api_keys.append(key)
+    
+    # Если нет переменных окружения, используем основной ключ
+    if not api_keys:
+        main_key = os.getenv('OPENAI_API_KEY')
+        if main_key:
+            api_keys = [main_key]
+        else:
+            print("❌ Ошибка: Не найдены API ключи OpenAI!")
+            print("💡 Установите переменные окружения API_KEY_1, API_KEY_2, ... или OPENAI_API_KEY")
+            return
+    
+    # Создаем экземпляр анализатора с множественными API ключами
+    analyzer = ChatGPTAnalyzer(api_keys=api_keys)
     
     # Получаем информацию о доступных чатах
     available_chats = []
     messages_dir = Path(analyzer.messages_dir)
     
-    # Перебираем пользовательские директории и файлы с сообщениями
+    # Ищем оптимизированные файлы данных
+    for item in messages_dir.rglob("*.json"):
+        if item.name.startswith("all_messages_"):
+            # Файл в новом оптимизированном формате
+            try:
+                with open(item, 'r', encoding='utf-8') as f:
+                    messages = json.load(f)
+                    msg_count = len(messages)
+                    # Получаем имя клиента из пути
+                    client_name = item.parent.name
+                    available_chats.append({
+                        "path": str(item.parent),
+                        "name": f"Клиент {client_name} (оптимизированный формат)",
+                        "messages": msg_count,
+                        "file": str(item)
+                    })
+            except Exception as e:
+                print(f"Ошибка чтения файла {item}: {e}")
+    
+    # Перебираем пользовательские директории (старый формат)
     for item in messages_dir.iterdir():
         if item.name.startswith("user_") and item.is_dir():
             # Проверяем наличие файла messages.json
@@ -251,19 +288,32 @@ async def main():
             try:
                 # Загружаем сообщения
                 chat_path = chat["path"]
-                messages_file = os.path.join(chat_path, "messages.json")
                 
-                if os.path.exists(messages_file):
+                # Проверяем новый оптимизированный формат
+                if "file" in chat:
+                    # Новый формат с прямой ссылкой на файл
+                    messages_file = chat["file"]
                     try:
                         with open(messages_file, 'r', encoding='utf-8') as f:
                             messages = json.load(f)
-                            print(f"\nЗагружено {len(messages)} сообщений из {chat['name']}")
+                            print(f"\nЗагружено {len(messages)} сообщений из {chat['name']} (оптимизированный формат)")
                     except Exception as e:
                         print(f"Ошибка при загрузке файла {messages_file}: {e}")
                         continue
                 else:
-                    print(f"Файл сообщений не найден: {messages_file}")
-                    continue
+                    # Старый формат
+                    messages_file = os.path.join(chat_path, "messages.json")
+                    if os.path.exists(messages_file):
+                        try:
+                            with open(messages_file, 'r', encoding='utf-8') as f:
+                                messages = json.load(f)
+                                print(f"\nЗагружено {len(messages)} сообщений из {chat['name']}")
+                        except Exception as e:
+                            print(f"Ошибка при загрузке файла {messages_file}: {e}")
+                            continue
+                    else:
+                        print(f"Файл сообщений не найден: {messages_file}")
+                        continue
                 
                 # Подготавливаем сообщения для анализа
                 prepared_messages = analyzer.prepare_messages_for_analysis(messages, sample_size=args.limit)
@@ -316,36 +366,45 @@ async def main():
                 json.dump(all_topics_data, f, ensure_ascii=False, indent=2)
             print(f"Данные по всем чатам сохранены в: {all_topics_data_file}")
             
-            # ЭТАП 2: Анализ монетизации на основе всех тем
-            print("\n--- ЭТАП 2: Анализ монетизации на основе всех тем ---")
-            monetization_result = await analyzer.develop_monetization_strategies(all_topics_result)
-            if monetization_result and monetization_result.get('monetization_strategies'):
-                # Сохраняем результаты анализа монетизации
-                monetization_file = analyzer.save_results_to_json(monetization_result, "all_chats_monetization_analysis")
-                print(f"Результаты анализа монетизации сохранены: {monetization_file}")
+            # ЭТАП 2: Оценка коммерческого потенциала на основе всех тем
+            print("\n--- ЭТАП 2: Оценка коммерческого потенциала на основе всех тем ---")
+            commercial_assessment = await analyzer.assess_commercial_potential(all_topics_result)
+            if commercial_assessment and commercial_assessment.get('commercial_assessment'):
+                # Сохраняем результаты оценки коммерческого потенциала
+                assessment_file = analyzer.save_results_to_json(commercial_assessment, "all_chats_commercial_assessment")
+                print(f"Результаты оценки коммерческого потенциала сохранены: {assessment_file}")
                 
-                # Создаем бизнес-план
-                business_plan = await analyzer.create_business_plan(all_topics_result, monetization_result)
-                if business_plan:
-                    # Сохраняем бизнес-план
-                    business_plan_file = analyzer.save_results_to_json(business_plan, "all_chats_business_plan")
-                    print(f"Бизнес-план сохранен: {business_plan_file}")
+                # Генерируем отчет
+                report = analyzer.generate_report(all_topics_result, commercial_assessment)
+                if report:
+                    # Сохраняем отчет
+                    report_path = os.path.join(analyzer.output_dir, "all_chats_report.md")
+                    with open(report_path, 'w', encoding='utf-8') as f:
+                        f.write(report)
+                    print(f"Отчет сохранен: {report_path}")
                     
-                    # Генерируем отчет
-                    report = analyzer.generate_report(all_topics_result, monetization_result, business_plan)
-                    if report:
-                        # Сохраняем отчет
-                        report_path = os.path.join(analyzer.output_dir, "all_chats_report.md")
-                        with open(report_path, 'w', encoding='utf-8') as f:
-                            f.write(report)
-                        print(f"Отчет сохранен: {report_path}")
+                # Генерируем исполнительное резюме
+                executive_summary = analyzer.generate_executive_summary(all_topics_result, commercial_assessment, all_topics_data)
+                if executive_summary:
+                    summary_path = os.path.join(analyzer.output_dir, "EXECUTIVE_SUMMARY.md")
+                    with open(summary_path, 'w', encoding='utf-8') as f:
+                        f.write(executive_summary)
+                    print(f"Исполнительное резюме сохранено: {summary_path}")
+                
+                # 🎉 ГЕНЕРИРУЕМ ГОТОВЫЙ ОТЧЕТ ДЛЯ КЛИЕНТА (все чаты)
+                print("Создаем готовый отчет для клиента по всем чатам...")
+                client_report = analyzer.generate_comprehensive_client_report(all_topics_result, commercial_assessment, "ВСЕ_ЧАТЫ")
+                
+                # Сохраняем готовый отчет для клиента
+                client_report_path = os.path.join(analyzer.output_dir, "ВСЕ_ЧАТЫ_ГОТОВЫЙ_ОТЧЕТ_ДЛЯ_КЛИЕНТА.md")
+                with open(client_report_path, 'w', encoding='utf-8') as f:
+                    f.write(client_report)
+                print(f"🎉 ГОТОВЫЙ ОТЧЕТ ПО ВСЕМ ЧАТАМ сохранен: {client_report_path}")
             
-            # Создаем визуализации для всех тем
-            visualizations = analyzer.visualize_topics(all_topics_result)
-            if visualizations:
-                print("\nСозданы визуализации для всех тем:")
-                for vis in visualizations:
-                    print(f"- {vis}")
+            # Создаем простое резюме для всех тем
+            summary = analyzer.create_simple_summary(all_topics_result)
+            if summary:
+                print("\n" + summary)
             
             print(f"\nУспешно проанализировано {len(all_topics_data)} из {len(filtered_chats)} чатов")
             print(f"Общее количество выявленных уникальных тем: {len(all_topics)}")
