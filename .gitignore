@@ -6,3 +6,15 @@ __pycache__/
 
 data/reports/all_chats_analysis.json
 data/reports/all_chats_topics.json
+
+# Client data and sensitive files
+data/messages/*/
+data/reports/
+logs/
+*.session
+*.log
+tg_collector.log
+
+# API keys and secrets
+.env
+credentials.json
