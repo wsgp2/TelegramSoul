@@ -73,65 +73,71 @@ async def analyze_chat(analyzer, chat_path, limit=1000):
             print("Нет текстовых сообщений для анализа после предварительной обработки.")
             return None
             
-        # Запускаем анализ тем
+        # 🌟 ЗАПУСКАЕМ РЕВОЛЮЦИОННЫЙ ОБЪЕДИНЕННЫЙ АНАЛИЗ
         try:
-            topics_result = await analyzer.analyze_topics(prepared_messages)
+            print("🎯 Запускаем революционный Soul Analysis...")
+            unified_result = await analyzer.analyze_unified_soul(prepared_messages)
         except Exception as e:
             import traceback
-            print(f"\nОшибка при анализе тем: {str(e)}")
+            print(f"\nОшибка при объединенном анализе: {str(e)}")
             print("\nПолная трассировка ошибки:")
             print(traceback.format_exc())
             return None
         
-        if not topics_result or not topics_result.get('topics'):
-            print("Не удалось проанализировать темы.")
+        if not unified_result:
+            print("Не удалось выполнить объединенный анализ.")
             return None
         
-        # Сохраняем результаты анализа тем
-        topics_file = analyzer.save_results_to_json(topics_result, f"{chat_name}_topics_analysis")
-        print(f"Результаты анализа тем сохранены: {topics_file}")
+        # Сохраняем результаты объединенного анализа
+        unified_file = analyzer.save_results_to_json(unified_result, f"{chat_name}_unified_soul_analysis")
+        print(f"🎯 Результаты объединенного анализа сохранены: {unified_file}")
         
-        # Оцениваем коммерческий потенциал тем
-        commercial_assessment = await analyzer.assess_commercial_potential(topics_result)
-        if commercial_assessment and commercial_assessment.get('commercial_assessment'):
-            # Сохраняем результаты оценки коммерческого потенциала
-            assessment_file = analyzer.save_results_to_json(commercial_assessment, f"{chat_name}_commercial_assessment")
-            print(f"Результаты оценки коммерческого потенциала сохранены: {assessment_file}")
-            
-            # Генерируем отчет
-            report = analyzer.generate_report(topics_result, commercial_assessment)
-            if report:
-                # Сохраняем отчет
-                report_path = os.path.join(analyzer.output_dir, f"{chat_name}_report.md")
-                with open(report_path, 'w', encoding='utf-8') as f:
-                    f.write(report)
-                print(f"Отчет сохранен: {report_path}")
-            
-            # 💎 ГЕНЕРИРУЕМ КРАСИВЫЙ ОТЧЕТ ДЛЯ КЛИЕНТА
-            print("Создаем красивый отчет для клиента...")
-            beautiful_report = analyzer.generate_beautiful_client_report(topics_result, commercial_assessment, chat_name)
-            
-            # Сохраняем красивый отчет для клиента
-            beautiful_report_path = os.path.join(analyzer.output_dir, f"{chat_name}_ОТЧЕТ_ДЛЯ_КЛИЕНТА.md")
-            with open(beautiful_report_path, 'w', encoding='utf-8') as f:
-                f.write(beautiful_report)
-            print(f"🎉 ОТЧЕТ ДЛЯ КЛИЕНТА сохранен: {beautiful_report_path}")
-            
-            # Показываем красивый формат тем в консоли
-            print("\n" + "="*60)
-            print("💎 ПРЕВЬЮ ОТЧЕТА ДЛЯ КЛИЕНТА:")
-            print("="*60)
-            beautiful_topics = analyzer.generate_beautiful_topic_format(topics_result)
-            print(beautiful_topics)
-            
-            # Создаем простое резюме вместо визуализаций
-            summary = analyzer.create_simple_summary(topics_result)
-            if summary:
-                print("\n" + summary)
+        # 🌟 ГЕНЕРИРУЕМ РЕВОЛЮЦИОННЫЙ ОТЧЕТ ДЛЯ КЛИЕНТА
+        print("🌟 Создаем революционный Soul Analysis Report для клиента...")
+        soul_report = analyzer.generate_beautiful_soul_report(unified_result, chat_name)
         
-        print(f"\nАнализ чата {chat_name} успешно завершен!")
-        print(f"Найдено {len(topics_result.get('topics', []))} основных тем")
-        return topics_result
+        # Сохраняем революционный отчет для клиента
+        soul_report_path = os.path.join(analyzer.output_dir, f"{chat_name}_SOUL_REPORT.md")
+        with open(soul_report_path, 'w', encoding='utf-8') as f:
+            f.write(soul_report)
+        print(f"🚀 SOUL ANALYSIS REPORT сохранен: {soul_report_path}")
+        
+        # Показываем превью отчета в консоли
+        print("\n" + "="*70)
+        print("🌟 ПРЕВЬЮ SOUL ANALYSIS REPORT:")
+        print("="*70)
+        
+        # Показываем только темы для превью
+        topics_data = unified_result.get('topics', [])
+        if topics_data:
+            print("📍 ОСНОВНЫЕ ТЕМЫ:")
+            for topic in topics_data[:3]:  # Показываем только топ 3
+                name = topic.get('name', 'Неизвестная тема')
+                percentage = topic.get('percentage', 0)
+                print(f"🔥 {name} ({percentage:.1f}%)")
+        
+        # Показываем коммерческий потенциал
+        monetization_data = unified_result.get('monetization_analysis', [])
+        if monetization_data:
+            print("\n💰 КОММЕРЧЕСКИЕ ВОЗМОЖНОСТИ:")
+            for analysis in monetization_data[:2]:  # Показываем только топ 2
+                topic = analysis.get('topic', 'Неизвестная тема')
+                revenue = analysis.get('realistic_revenue', 'не оценено')
+                print(f"💵 {topic}: {revenue}")
+        
+        # Показываем психологический инсайт
+        psychological_data = unified_result.get('psychological_analysis', {})
+        transformation_hint = psychological_data.get('transformation_hint', '')
+        if transformation_hint:
+            print(f"\n✨ КЛЮЧ К ТРАНСФОРМАЦИИ:")
+            print(f"   {transformation_hint[:100]}...")
+        
+        print(f"\n🚀 Революционный Soul Analysis чата {chat_name} успешно завершен!")
+        topics_count = len(unified_result.get('topics', []))
+        monetization_count = len(unified_result.get('monetization_analysis', []))
+        patterns_count = len(psychological_data.get('patterns', []))
+        print(f"📊 Найдено: {topics_count} тем, {monetization_count} способов монетизации, {patterns_count} психологических паттернов")
+        return unified_result
     
     except Exception as e:
         import traceback

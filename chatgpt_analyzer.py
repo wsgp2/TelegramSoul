@@ -256,7 +256,7 @@ class ChatGPTAnalyzer:
             logger.error(f"Ошибка при вызове OpenAI API: {e}")
             raise
             
-    async def analyze_topics(self, text_messages: List[str], max_tokens_per_chunk: int = 8000, checkpoint_base: str = None):
+    async def analyze_unified_soul(self, text_messages: List[str], max_tokens_per_chunk: int = 8000, checkpoint_base: str = None):
         """
         Анализирует темы в сообщениях с использованием ChatGPT с поддержкой checkpoint
         
@@ -273,10 +273,10 @@ class ChatGPTAnalyzer:
         # Если сообщений мало, анализируем все сразу
         if len('\n'.join(text_messages)) < 10000:  # Примерная оценка длины текста
             messages_text = '\n'.join(text_messages)
-            prompt = TOPIC_ANALYSIS_PROMPT.format(messages=messages_text)
+            prompt = UNIFIED_SOUL_ANALYSIS_PROMPT.format(messages=messages_text)
             
             messages_for_api = [
-                {"role": "system", "content": "Вы - эксперт по тематическому анализу и выявлению трендов в данных."},
+                {"role": "system", "content": "Вы - экспертный интеллект для комплексного анализа цифрового поля пользователя."},
                 {"role": "user", "content": prompt}
             ]
             
@@ -286,8 +286,8 @@ class ChatGPTAnalyzer:
                 # Более надежный парсинг JSON
                 return self.extract_json_from_text(content)
             except Exception as e:
-                logger.error(f"Ошибка при анализе тем: {e}")
-                return {"topics": []}
+                logger.error(f"Ошибка при анализе душевного состояния: {e}")
+                return {"topics": [], "monetization_analysis": [], "psychological_analysis": {}}
         
         # Если сообщений много, разбиваем на части и анализируем каждую часть
         chunk_size = len(text_messages) // ((len('\n'.join(text_messages)) // max_tokens_per_chunk) + 1)
@@ -331,8 +331,8 @@ class ChatGPTAnalyzer:
             logger.info(f"🔄 Анализируем часть {real_index+1} из {len(chunk_messages)} (API ключ #{self.api_keys.index(api_key)+1})")
             
             messages = [
-                {"role": "system", "content": "Вы - эксперт по тематическому анализу и выявлению трендов в данных."},
-                {"role": "user", "content": TOPIC_ANALYSIS_PROMPT.format(messages=chunk_text)}
+                {"role": "system", "content": "Вы - экспертный интеллект для комплексного анализа цифрового поля пользователя."},
+                {"role": "user", "content": UNIFIED_SOUL_ANALYSIS_PROMPT.format(messages=chunk_text)}
             ]
             
             try:
@@ -1060,9 +1060,9 @@ JSON формат:
         
         return "\n".join(summary_lines)
         
-    async def run_full_analysis(self, chat_name: str, messages_limit: int = None, save_results: bool = True):
+    async def run_unified_soul_analysis(self, chat_name: str, messages_limit: int = None, save_results: bool = True):
         """
-        Запускает полный цикл анализа сообщений чата
+        Запускает революционный объединенный анализ цифровой души пользователя
         
         Args:
             chat_name (str): Название чата для анализа
@@ -1070,74 +1070,49 @@ JSON формат:
             save_results (bool): Сохранять ли результаты в файлы
             
         Returns:
-            Dict: Результаты полного анализа
+            Dict: Результаты объединенного анализа (темы + монетизация + психология)
         """
-        logger.info(f"Запускаем полный анализ чата '{chat_name}'")
-        results = {}
+        logger.info(f"🌟 Запускаем революционный Soul Analysis для чата '{chat_name}'")
         
         # Загружаем сообщения
         messages = await self.load_messages_from_dir(directory=os.path.join(self.messages_dir, chat_name))
         if not messages:
             logger.error(f"Не удалось загрузить сообщения для чата '{chat_name}'")
-            return results
+            return {"topics": [], "monetization_analysis": [], "psychological_analysis": {}}
             
         logger.info(f"Загружено {len(messages)} сообщений из чата '{chat_name}'")
         
-        # Анализируем темы
-        topics_result = await self.analyze_topics(self.prepare_messages_for_analysis(messages, sample_size=messages_limit))
-        if not topics_result or not topics_result.get('topics'):
-            logger.error("Не удалось проанализировать темы")
-            return results
-            
-        results['topic_analysis'] = topics_result
+        # Выполняем объединенный анализ с революционным промптом
+        text_messages = self.prepare_messages_for_analysis(messages, sample_size=messages_limit)
+        checkpoint_base = f"{chat_name}_unified_soul" if save_results else None
         
-        # Если указано сохранять результаты, сохраняем анализ тем
+        unified_result = await self.analyze_unified_soul(text_messages, checkpoint_base=checkpoint_base)
+        
+        if not unified_result:
+            logger.error("Не удалось выполнить объединенный анализ")
+            return {"topics": [], "monetization_analysis": [], "psychological_analysis": {}}
+            
+        logger.info("🎯 Объединенный анализ завершен успешно!")
+        
+        # Сохраняем результаты если нужно
         if save_results:
-            self.save_results_to_json(topics_result, f"{chat_name}_topics_analysis")
+            # Сохраняем полный результат
+            self.save_results_to_json(unified_result, f"{chat_name}_unified_soul_analysis")
             
-        # Анализируем стратегии монетизации
-        monetization_result = await self.develop_monetization_strategies(topics_result)
-        if monetization_result and monetization_result.get('monetization_strategies'):
-            results['monetization_analysis'] = monetization_result
+            # Генерируем и сохраняем красивый отчет
+            beautiful_report = self.generate_beautiful_soul_report(unified_result, chat_name)
             
-            # Если указано сохранять результаты, сохраняем анализ монетизации
-            if save_results:
-                self.save_results_to_json(monetization_result, f"{chat_name}_monetization_strategies")
-                
-        # Создаем бизнес-план
-        if topics_result and monetization_result:
-            business_plan_result = await self.create_business_plan(topics_result, monetization_result)
-            if business_plan_result and business_plan_result.get('business_plan'):
-                results['business_plan'] = business_plan_result
-                
-                # Если указано сохранять результаты, сохраняем бизнес-план
-                if save_results:
-                    self.save_results_to_json(business_plan_result, f"{chat_name}_business_plan")
-        
-        # Создаем визуализации
-        if topics_result:
-            visualizations = self.visualize_topics(topics_result)
-            results['visualizations'] = visualizations
-        
-        # Генерируем и сохраняем отчет
-        if save_results and (topics_result or monetization_result or results.get('business_plan')):
-            report_text = self.generate_report(
-                topics_result,
-                results.get('monetization_analysis'),
-                results.get('business_plan')
-            )
-            
-            report_path = os.path.join(self.output_dir, f"{chat_name}_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md")
+            report_path = os.path.join(self.output_dir, f"{chat_name}_soul_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md")
             os.makedirs(os.path.dirname(report_path), exist_ok=True)
             
             with open(report_path, 'w', encoding='utf-8') as f:
-                f.write(report_text)
+                f.write(beautiful_report)
                 
-            logger.info(f"Отчет сохранен в {report_path}")
-            results['report_path'] = report_path
+            logger.info(f"🌟 Soul Analysis Report сохранен в {report_path}")
+            unified_result['report_path'] = report_path
         
-        logger.info(f"Полный анализ чата '{chat_name}' завершен успешно")
-        return results
+        logger.info(f"🚀 Революционный Soul Analysis для '{chat_name}' завершен!")
+        return unified_result
 
     def generate_comprehensive_client_report(self, topics: Dict, commercial_assessment: Dict = None, chat_name: str = "Клиент") -> str:
         """
@@ -1516,252 +1491,332 @@ JSON формат:
         
         return "\n".join(beautiful_output)
 
-    def generate_beautiful_client_report(self, topics_data: Dict, commercial_assessment: Dict = None, chat_name: str = "Клиент") -> str:
+    def generate_beautiful_soul_report(self, unified_data: Dict, chat_name: str = "Клиент") -> str:
         """
-        Генерирует красивый полный отчет для клиента с использованием нового формата
+        Генерирует революционный полный отчет для клиента с использованием объединенного анализа
         
         Args:
-            topics_data: Данные анализа тем
-            commercial_assessment: Коммерческая оценка тем
+            unified_data: Данные объединенного анализа (темы + монетизация + психология)
             chat_name: Имя клиента/чата
             
         Returns:
-            str: Полный красивый отчет для клиента
+            str: Полный красивый отчет для клиента с тремя уровнями анализа
         """
         report_lines = []
         
-        # Заголовок отчета
-        report_lines.append(f"# 🎯 ПЕРСОНАЛЬНЫЙ АНАЛИЗ ИНТЕРЕСОВ")
+        # 🎯 ЗАГОЛОВОК ОТЧЕТА
+        report_lines.append(f"# 🌟 SOUL ANALYSIS - КОМПЛЕКСНЫЙ РАЗБОР ЦИФРОВОЙ ДУШИ")
         report_lines.append(f"## 👤 Клиент: {chat_name}")
         report_lines.append(f"## 📅 Дата анализа: {datetime.now().strftime('%d.%m.%Y')}")
-        report_lines.append("\n" + "=" * 60 + "\n")
+        report_lines.append("\n" + "═" * 70 + "\n")
         
-        # Добавляем красивый формат тем
-        beautiful_topics = self.generate_beautiful_topic_format(topics_data)
-        report_lines.append(beautiful_topics)
-        
-        # Добавляем коммерческую оценку если есть
-        if commercial_assessment and commercial_assessment.get('commercial_assessment'):
-            report_lines.append("\n" + "=" * 60 + "\n")
-            report_lines.append("💰 **ВОЗМОЖНОСТИ МОНЕТИЗАЦИИ**\n")
+        # 📍 УРОВЕНЬ 1: ТЕМЫ И ИНТЕРЕСЫ
+        topics_data = unified_data.get('topics', [])
+        if topics_data:
+            report_lines.append("## 📍 УРОВЕНЬ 1: ВАШИ ОСНОВНЫЕ ТЕМЫ И ИНТЕРЕСЫ")
+            report_lines.append("")
+            report_lines.append("Мы разделили историю вашего общения на 15 временных периодов для анализа:")
+            report_lines.append("")
             
-            commercial_topics = commercial_assessment['commercial_assessment']
-            for topic_assessment in commercial_topics:
-                # Пробуем разные варианты названий полей
-                topic_name = (topic_assessment.get('topic_name') or 
-                             topic_assessment.get('topic') or 
-                             'Неизвестная тема')
+            # Нормализуем проценты
+            total_raw_percentage = sum(t.get('percentage', 0) for t in topics_data)
+            if total_raw_percentage > 100:
+                normalization_factor = 100 / total_raw_percentage
+                for topic in topics_data:
+                    topic['normalized_percentage'] = topic.get('percentage', 0) * normalization_factor
+            else:
+                for topic in topics_data:
+                    topic['normalized_percentage'] = topic.get('percentage', 0)
+            
+            # Сортируем темы по проценту
+            sorted_topics = sorted(topics_data, key=lambda x: x.get('normalized_percentage', 0), reverse=True)
+            
+            for topic in sorted_topics:
+                topic_name = topic.get('name', 'Неизвестная тема')
+                percentage = topic.get('normalized_percentage', 0)
+                active_periods = topic.get('active_periods', 8)  # Дефолт 8 из 15
+                sentiment = topic.get('sentiment', 'neutral')
                 
-                # Пробуем разные варианты названий полей для потенциала
-                commercial_score = (topic_assessment.get('commercial_potential') or
-                                  topic_assessment.get('commercial_score') or 
-                                  'Не оценено')
+                # Определяем emoji и статус темы
+                if percentage >= 25:
+                    emoji = "🔥"
+                    status = "ПОСТОЯННАЯ ТЕМА - Обсуждается практически всегда"
+                elif percentage >= 15:
+                    emoji = "⭐"
+                    status = "ОСНОВНОЙ ИНТЕРЕС - Регулярно возвращаетесь к этой теме"
+                elif percentage >= 8:
+                    emoji = "💡"
+                    status = "ПЕРИОДИЧЕСКИЙ ИНТЕРЕС - Иногда поднимается в разговоре"
+                else:
+                    emoji = "📌"
+                    status = "ВТОРОСТЕПЕННАЯ ТЕМА - Редко обсуждается"
+                
+                # Определяем emoji настроения
+                if sentiment == 'positive':
+                    sentiment_emoji = "😊"
+                    sentiment_text = "позитивное отношение"
+                elif sentiment == 'negative':
+                    sentiment_emoji = "😔"
+                    sentiment_text = "есть напряжение/проблемы"
+                else:
+                    sentiment_emoji = "😐"
+                    sentiment_text = "нейтральное отношение"
+                
+                # Визуализация активности по периодам
+                filled_periods = "●" * active_periods
+                empty_periods = "○" * (15 - active_periods)
+                progress_bar = filled_periods + empty_periods
+                
+                report_lines.append(f"{emoji} **{topic_name}**")
+                report_lines.append(f"📌 {status}")
+                report_lines.append(f"📊 {progress_bar} {active_periods}/15 периодов")
+                report_lines.append(f"⚡ {percentage:.1f}% от всех ваших сообщений")
+                report_lines.append(f"{sentiment_emoji} Эмоциональная окраска: {sentiment_text}")
+                report_lines.append("")
+            
+            report_lines.append("📖 **Объяснение:**")
+            report_lines.append("● = тема активно обсуждалась в этом периоде")
+            report_lines.append("○ = тема не обсуждалась в этом периоде")
+            report_lines.append("")
+        
+        # 💰 УРОВЕНЬ 2: МОНЕТИЗАЦИЯ
+        monetization_data = unified_data.get('monetization_analysis', [])
+        if monetization_data:
+            report_lines.append("\n" + "═" * 70 + "\n")
+            report_lines.append("## 💰 УРОВЕНЬ 2: ВОЗМОЖНОСТИ МОНЕТИЗАЦИИ")
+            report_lines.append("")
+            report_lines.append("На основе анализа ваших интересов мы выявили следующие возможности для заработка:")
+            report_lines.append("")
+            
+            for analysis in monetization_data:
+                topic_name = analysis.get('topic', 'Неизвестная тема')
+                commercial_score = analysis.get('commercial_score', 'low')
+                realistic_revenue = analysis.get('realistic_revenue', 'не оценено')
+                methods = analysis.get('monetization_methods', [])
                 
                 # Определяем emoji для коммерческого потенциала
-                score_lower = str(commercial_score).lower()
-                if 'high' in score_lower or 'высокий' in score_lower:
+                if commercial_score == 'high':
                     potential_emoji = "🔥"
-                    potential_text = "Высокий коммерческий потенциал"
-                elif 'medium' in score_lower or 'средний' in score_lower:
-                    potential_emoji = "⭐"  
-                    potential_text = "Средний коммерческий потенциал"
-                elif 'low' in score_lower or 'низкий' in score_lower:
-                    potential_emoji = "💡"
-                    potential_text = "Низкий коммерческий потенциал"
+                    potential_text = "ВЫСОКИЙ потенциал"
+                elif commercial_score == 'medium':
+                    potential_emoji = "⭐"
+                    potential_text = "СРЕДНИЙ потенциал"
                 else:
                     potential_emoji = "💡"
-                    potential_text = commercial_score
+                    potential_text = "НИЗКИЙ потенциал"
                 
                 report_lines.append(f"{potential_emoji} **{topic_name}**")
                 report_lines.append(f"💰 Коммерческий потенциал: {potential_text}")
+                report_lines.append(f"💵 Реалистичный доход: {realistic_revenue}")
                 
-                # Добавляем реалистичный доход если есть
-                if topic_assessment.get('realistic_revenue'):
-                    report_lines.append(f"💵 Потенциальный доход: {topic_assessment['realistic_revenue']}")
-                
-                # Добавляем методы монетизации если есть
-                if topic_assessment.get('monetization_methods'):
+                if methods:
                     report_lines.append("🛍️ **Способы заработка:**")
-                    for method in topic_assessment['monetization_methods'][:2]:  # Топ 2 метода
+                    for method in methods[:3]:  # Топ 3 метода
                         method_name = method.get('method', 'Способ заработка')
                         time_to_profit = method.get('time_to_profit', 'неизвестно')
-                        report_lines.append(f"   • {method_name} (срок окупаемости: {time_to_profit})")
+                        complexity = method.get('implementation_complexity', 'неизвестна')
+                        report_lines.append(f"   • **{method_name}**")
+                        report_lines.append(f"     ⏰ Срок окупаемости: {time_to_profit}")
+                        report_lines.append(f"     🔧 Сложность: {complexity}")
                 
-                # Добавляем старые продукты для совместимости
-                elif topic_assessment.get('products'):
-                    report_lines.append("🛍️ **Возможные продукты:**")
-                    for product in topic_assessment['products'][:3]:  # Топ 3 продукта
-                        product_name = product.get('name', 'Продукт')
-                        revenue_potential = product.get('revenue_potential', 'неизвестен')
-                        report_lines.append(f"   • {product_name} (потенциал: {revenue_potential})")
+                report_lines.append("")
+        
+        # 🧠 УРОВЕНЬ 3: ПСИХОЛОГИЧЕСКИЙ АНАЛИЗ
+        psychological_data = unified_data.get('psychological_analysis', {})
+        if psychological_data:
+            report_lines.append("\n" + "═" * 70 + "\n")
+            report_lines.append("## 🧠 УРОВЕНЬ 3: ГЛУБИННЫЕ ПАТТЕРНЫ И ТРАНСФОРМАЦИЯ")
+            report_lines.append("")
+            
+            system_model = psychological_data.get('system_model', '')
+            patterns = psychological_data.get('patterns', [])
+            transformation_hint = psychological_data.get('transformation_hint', '')
+            
+            if system_model:
+                report_lines.append("🔮 **Ваша система поведения:**")
+                report_lines.append(f"{system_model}")
+                report_lines.append("")
+            
+            if patterns:
+                report_lines.append("🔍 **Выявленные паттерны:**")
+                report_lines.append("")
                 
-                report_lines.append("")  # Пустая строка
+                for i, pattern in enumerate(patterns, 1):
+                    name = pattern.get('name', f'Паттерн {i}')
+                    origin = pattern.get('origin', 'неизвестно')
+                    block_effect = pattern.get('block_effect', 'не определено')
+                    blind_spot = pattern.get('blind_spot', 'не определено')
+                    related_topics = pattern.get('related_topics', [])
+                    
+                    report_lines.append(f"**{i}. {name}**")
+                    report_lines.append(f"   🌱 Происхождение: {origin}")
+                    report_lines.append(f"   🚫 Как блокирует: {block_effect}")
+                    report_lines.append(f"   👁️ Слепая зона: {blind_spot}")
+                    if related_topics:
+                        report_lines.append(f"   📌 Проявляется в темах: {', '.join(related_topics)}")
+                    report_lines.append("")
+            
+            if transformation_hint:
+                report_lines.append("✨ **КЛЮЧ К ТРАНСФОРМАЦИИ:**")
+                report_lines.append(f"{transformation_hint}")
+                report_lines.append("")
         
-        # Добавляем рекомендации
-        report_lines.append("\n" + "=" * 60 + "\n")
-        report_lines.append("🎯 **ПЕРСОНАЛЬНЫЕ РЕКОМЕНДАЦИИ**\n")
-        
-        if topics_data and topics_data.get('topics'):
-            # Нормализуем проценты для рекомендаций
-            topics = topics_data['topics']
-            total_raw_percentage = sum(t.get('percentage', 0) for t in topics)
+        # 🎯 ПЕРСОНАЛЬНЫЕ РЕКОМЕНДАЦИИ
+        if topics_data:
+            report_lines.append("\n" + "═" * 70 + "\n")
+            report_lines.append("## 🎯 ПЕРСОНАЛЬНЫЕ РЕКОМЕНДАЦИИ")
+            report_lines.append("")
             
-            if total_raw_percentage > 100:
-                normalization_factor = 100 / total_raw_percentage
-                for topic in topics:
-                    topic['normalized_percentage'] = topic.get('percentage', 0) * normalization_factor
-            else:
-                for topic in topics:
-                    topic['normalized_percentage'] = topic.get('percentage', 0)
+            top_topics = sorted(topics_data, key=lambda x: x.get('normalized_percentage', 0), reverse=True)[:3]
             
-            top_topics = sorted(topics, key=lambda x: x.get('normalized_percentage', 0), reverse=True)[:3]
-            
-            report_lines.append("На основе анализа ваших интересов и активности в чате мы рекомендуем:")
+            report_lines.append("На основе полного анализа вашей цифровой души мы рекомендуем:")
             report_lines.append("")
             
             for i, topic in enumerate(top_topics, 1):
                 topic_name = topic.get('name', f'Тема {i}')
                 percentage = topic.get('normalized_percentage', 0)
+                commercial_potential = topic.get('commercial_potential', 'low')
                 
-                # Определяем рекомендацию на основе процента
+                # Определяем рекомендацию
                 if percentage >= 20:
-                    recommendation = "Это ваша основная область интереса - продолжайте развиваться в этом направлении"
+                    focus_rec = "Это ваша основная страсть - развивайте её максимально"
                 elif percentage >= 15:
-                    recommendation = "Вы часто обсуждаете эту тему - есть потенциал для углубления знаний"
+                    focus_rec = "У вас есть устойчивый интерес - можно углубляться"
                 else:
-                    recommendation = "Периодически возвращаетесь к этой теме - можно изучить глубже"
+                    focus_rec = "Периодический интерес - подходит для экспериментов"
                 
-                report_lines.append(f"**{i}. Фокус на теме \"{topic_name}\"**")
-                report_lines.append(f"   • {percentage:.1f}% ваших сообщений касается этой темы")
-                report_lines.append(f"   • {recommendation}")
+                # Добавляем коммерческую рекомендацию
+                if commercial_potential == 'high':
+                    business_rec = "💰 Высокий потенциал монетизации - стоит инвестировать время и ресурсы"
+                elif commercial_potential == 'medium':
+                    business_rec = "💡 Средний потенциал - можно попробовать небольшие проекты"
+                else:
+                    business_rec = "🎯 Развивайте для души, коммерческий потенциал ограничен"
+                
+                report_lines.append(f"**{i}. Фокус на \"{topic_name}\" ({percentage:.1f}%)**")
+                report_lines.append(f"   📈 {focus_rec}")
+                report_lines.append(f"   {business_rec}")
                 report_lines.append("")
         
-        # Подпись
-        report_lines.append("---")
-        report_lines.append("📊 *Отчет сгенерирован системой анализа TelegramSoul*")
+        # ПОДПИСЬ
+        report_lines.append("─" * 70)
+        report_lines.append("🌟 *Soul Analysis Report - глубокий анализ цифровой души*")
+        report_lines.append("📊 *Система TelegramSoul использует ИИ для комплексного анализа*")
         report_lines.append(f"⏰ *Время генерации: {datetime.now().strftime('%d.%m.%Y %H:%M')}*")
         
         return "\n".join(report_lines)
 
-# Промпты для анализа тем
-# Промпт для анализа тематики
-TOPIC_ANALYSIS_PROMPT = """
-Как опытный бизнес-аналитик и консультант по монетизации, проанализируйте следующие сообщения из Telegram-чата. 
-Выведите основные темы обсуждения, интересы участников и скрытые потребности.
+# Революционный объединенный промпт для комплексного анализа
+UNIFIED_SOUL_ANALYSIS_PROMPT = """
+Ты — экспертный интеллект, сочетающий в себе качества:
+- бизнес-аналитика,
+- архитектора монетизационных моделей,
+- транзактного аналитика и сценарного терапевта,
+- системного консультанта по глубинным паттернам поведения.
 
-Ожидаемый результат:
-1. 5-7 Основных тем, о которых говорят участники (от наиболее часто упоминаемых к наименее часто упоминаемым)
-2. Для каждой темы укажите ключевое слово и процент сообщений от общего числа
-3. Проанализируйте эмоциональную окраску обсуждения каждой темы (позитивная/негативная/нейтральная)
-4. Предоставьте краткое описание темы и контекста обсуждения
+Твоя задача — провести комплексный разбор цифрового поля пользователя на основе Telegram-сообщений, включающий три уровня:
 
-СООБЩЕНИЯ:
+---
+
+📍 Уровень 1: Тематический анализ
+1. Выдели 5–7 ключевых тем, обсуждаемых в переписке.
+2. Укажи по каждой теме:
+   - ключевые слова,
+   - процент упоминаний (ВАЖНО: сумма всех процентов не должна превышать 100%),
+   - эмоциональную окраску (позитивная/нейтральная/негативная),
+   - краткое описание темы и контекста,
+   - количество периодов активности (из 15 временных периодов),
+   - коммерческий потенциал (high/medium/low).
+
+Результат подай в JSON:
+{{
+  "topics": [
+    {{
+      "name": "Название темы",
+      "keywords": [...],
+      "percentage": XX.X,
+      "sentiment": "positive/negative/neutral",
+      "description": "...",
+      "active_periods": XX,
+      "commercial_potential": "high/medium/low"
+    }},
+    ...
+  ]
+}}
+
+---
+
+📍 Уровень 2: Стратегии монетизации
+На основе тем из Уровня 1:
+1. Предложи по каждой теме с high/medium потенциалом 2–3 конкретных способа заработка.
+2. Для каждого способа укажи:
+   - реалистичный потенциальный доход в рублях (например: "15,000-30,000 руб/мес"),
+   - срок окупаемости (например: "2-3 месяца"),
+   - сложность реализации (низкая/средняя/высокая).
+
+Результат подай в JSON:
+{{
+  "monetization_analysis": [
+    {{
+      "topic": "Название темы",
+      "commercial_score": "high/medium/low",
+      "realistic_revenue": "15,000-30,000 руб/мес",
+      "monetization_methods": [
+        {{
+          "method": "Название способа",
+          "description": "Описание",
+          "time_to_profit": "2-3 месяца",
+          "implementation_complexity": "низкая/средняя/высокая"
+        }},
+        ...
+      ]
+    }},
+    ...
+  ]
+}}
+
+---
+
+📍 Уровень 3: Скрытые паттерны и трансформационные ключи
+На основе анализа тем, словаря, повторяющихся структур и эмоционального тона:
+1. Определи метафору или архитектурный образ поведения участника как системы.
+2. Выяви 3–5 повторяющихся сценарных паттернов, мешающих реализации и росту:
+   - их возможное происхождение (семья / культура / травма / социум),
+   - в каких темах они особенно проявлены,
+   - как именно они блокируют развитие и энергию,
+   - какую "слепую зону" создают.
+3. Предложи трансформационный ключ — что можно начать делать/осознавать, чтобы преодолеть ограничения.
+
+Результат подай в JSON:
+{{
+  "psychological_analysis": {{
+    "system_model": "Метафорическое описание системы поведения",
+    "patterns": [
+      {{
+        "name": "Название паттерна",
+        "origin": "Возможное происхождение",
+        "related_topics": ["тема1", "тема2"],
+        "block_effect": "Как блокирует развитие",
+        "blind_spot": "Какую слепую зону создает"
+      }},
+      ...
+    ],
+    "transformation_hint": "Ключевая рекомендация для трансформации"
+  }}
+}}
+
+---
+
+📎 Вводные данные:  
+Вот массив сообщений Telegram-чата:  
 {messages}
 
-Верните результат в JSON формате следующей структуры:
+🔁 Объедини анализ всех уровней в одну JSON-структуру. Выведи полную картину: от интересов — к продукту — к тени — к трансформации.
+
+Финальная структура JSON:
 {{
-    "topics": [
-        {{
-            "name": "Название темы",
-            "keywords": ["ключевое слово 1", "ключевое слово 2", ...],
-            "percentage": XX.X,
-            "sentiment": "positive/negative/neutral",
-            "description": "Краткое описание темы и контекста обсуждения"
-        }},
-        ...
-    ]
-}}
-"""
-
-# Промпт для анализа стратегий монетизации
-MONETIZATION_ANALYSIS_PROMPT = """
-Как эксперт по стратегии монетизации и бизнес-модели, проанализируйте результаты тематического анализа чата и предложите стратегии монетизации для каждой темы.
-На основе следующих тем и их характеристик:
-{topics_json}
-
-Разработайте для каждой темы:
-1. 3-5 конкретных продуктов/услуг, которые можно создать
-2. Наибольшую подходящую модель монетизации (подписка/разовая оплата/freemium и т.д.)
-3. Оценку потенциального дохода (низкий/средний/высокий)
-4. Сложность реализации (низкая/средняя/высокая)
-5. Временной интервал для запуска (короткий/средний/длинный)
-
-Верните результат в JSON формате следующей структуры:
-{{
-    "monetization_strategies": [
-        {{
-            "topic": "Название темы",
-            "products": [
-                {{
-                    "name": "Название продукта/услуги",
-                    "description": "Описание продукта/услуги",
-                    "model": "Модель монетизации",
-                    "revenue_potential": "низкий/средний/высокий",
-                    "implementation_complexity": "низкая/средняя/высокая",
-                    "timeframe": "короткий/средний/длинный"
-                }},
-                ...
-            ]
-        }},
-        ...
-    ]
-}}
-"""
-
-# Промпт для создания бизнес-плана
-BUSINESS_PLAN_PROMPT = """
-Как опытный бизнес-аналитик и консультант по стратегии, проанализируйте результаты тематического анализа чата и предложите бизнес-план для каждой темы.
-На основе следующих тем и их характеристик:
-{topics_json}
-
-Разработайте для каждой темы:
-1. 3-5 конкретных продуктов/услуг, которые можно создать
-2. Наибольшую подходящую модель монетизации (подписка/разовая оплата/freemium и т.д.)
-3. Оценку потенциального дохода (низкий/средний/высокий)
-4. Сложность реализации (низкая/средняя/высокая)
-5. Временной интервал для запуска (короткий/средний/длинный)
-
-Верните результат в JSON формате следующей структуры:
-{{
-    "business_plan": {{
-        "executive_summary": {{
-            "concept": "",
-            "target_audience": "",
-            "value_proposition": ""
-        }},
-        "market_analysis": {{
-            "market_size": "",
-            "trends": [],
-            "competitors": []
-        }},
-        "product_description": {{
-            "features": [],
-            "usp": ""
-        }},
-        "business_model": {{
-            "pricing": "",
-            "sales_channels": []
-        }},
-        "marketing_strategy": {{
-            "acquisition_channels": [],
-            "retention_methods": []
-        }},
-        "operational_plan": {{
-            "resources": [],
-            "team": [],
-            "timeline": {{}}
-        }},
-        "financial_forecast": {{
-            "initial_investment": "",
-            "breakeven": "",
-            "roi": ""
-        }},
-        "risks": [
-            {{
-                "description": "",
-                "mitigation": ""
-            }}
-        ]
-    }}
+  "topics": [...],
+  "monetization_analysis": [...],
+  "psychological_analysis": {{...}}
 }}
 """
