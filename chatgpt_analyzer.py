@@ -1547,22 +1547,48 @@ JSON формат:
             
             commercial_topics = commercial_assessment['commercial_assessment']
             for topic_assessment in commercial_topics:
-                topic_name = topic_assessment.get('topic', 'Неизвестная тема')
-                commercial_score = topic_assessment.get('commercial_score', 'Не оценено')
+                # Пробуем разные варианты названий полей
+                topic_name = (topic_assessment.get('topic_name') or 
+                             topic_assessment.get('topic') or 
+                             'Неизвестная тема')
+                
+                # Пробуем разные варианты названий полей для потенциала
+                commercial_score = (topic_assessment.get('commercial_potential') or
+                                  topic_assessment.get('commercial_score') or 
+                                  'Не оценено')
                 
                 # Определяем emoji для коммерческого потенциала
-                if 'высокий' in commercial_score.lower():
+                score_lower = str(commercial_score).lower()
+                if 'high' in score_lower or 'высокий' in score_lower:
                     potential_emoji = "🔥"
-                elif 'средний' in commercial_score.lower():
-                    potential_emoji = "⭐"
+                    potential_text = "Высокий коммерческий потенциал"
+                elif 'medium' in score_lower or 'средний' in score_lower:
+                    potential_emoji = "⭐"  
+                    potential_text = "Средний коммерческий потенциал"
+                elif 'low' in score_lower or 'низкий' in score_lower:
+                    potential_emoji = "💡"
+                    potential_text = "Низкий коммерческий потенциал"
                 else:
                     potential_emoji = "💡"
+                    potential_text = commercial_score
                 
                 report_lines.append(f"{potential_emoji} **{topic_name}**")
-                report_lines.append(f"💰 Коммерческий потенциал: {commercial_score}")
+                report_lines.append(f"💰 Коммерческий потенциал: {potential_text}")
                 
-                # Добавляем продукты если есть
-                if topic_assessment.get('products'):
+                # Добавляем реалистичный доход если есть
+                if topic_assessment.get('realistic_revenue'):
+                    report_lines.append(f"💵 Потенциальный доход: {topic_assessment['realistic_revenue']}")
+                
+                # Добавляем методы монетизации если есть
+                if topic_assessment.get('monetization_methods'):
+                    report_lines.append("🛍️ **Способы заработка:**")
+                    for method in topic_assessment['monetization_methods'][:2]:  # Топ 2 метода
+                        method_name = method.get('method', 'Способ заработка')
+                        time_to_profit = method.get('time_to_profit', 'неизвестно')
+                        report_lines.append(f"   • {method_name} (срок окупаемости: {time_to_profit})")
+                
+                # Добавляем старые продукты для совместимости
+                elif topic_assessment.get('products'):
                     report_lines.append("🛍️ **Возможные продукты:**")
                     for product in topic_assessment['products'][:3]:  # Топ 3 продукта
                         product_name = product.get('name', 'Продукт')
