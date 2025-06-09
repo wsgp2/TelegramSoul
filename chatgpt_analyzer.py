@@ -1649,7 +1649,7 @@ JSON формат:
         if topics_data:
             report_lines.append("## 📍 УРОВЕНЬ 1: ВАШИ ОСНОВНЫЕ ТЕМЫ И ИНТЕРЕСЫ")
             report_lines.append("")
-            report_lines.append("Мы разделили историю вашего общения на 15 временных периодов для анализа:")
+            report_lines.append("На основе анализа всех ваших сообщений мы выявили следующие основные темы:")
             report_lines.append("")
             
             # Нормализуем проценты
@@ -1665,25 +1665,29 @@ JSON формат:
             # Сортируем темы по проценту
             sorted_topics = sorted(topics_data, key=lambda x: x.get('normalized_percentage', 0), reverse=True)
             
-            for topic in sorted_topics:
+            for i, topic in enumerate(sorted_topics, 1):
                 topic_name = topic.get('name', 'Неизвестная тема')
                 percentage = topic.get('normalized_percentage', 0)
-                active_periods = topic.get('active_periods', 8)  # Дефолт 8 из 15
                 sentiment = topic.get('sentiment', 'neutral')
+                description = topic.get('description', '')
+                keywords = topic.get('keywords', [])
                 
-                # Определяем emoji и статус темы
+                # Определяем emoji и статус темы по процентам
                 if percentage >= 25:
                     emoji = "🔥"
-                    status = "ПОСТОЯННАЯ ТЕМА - Обсуждается практически всегда"
+                    status = "ДОМИНИРУЮЩАЯ ТЕМА"
                 elif percentage >= 15:
                     emoji = "⭐"
-                    status = "ОСНОВНОЙ ИНТЕРЕС - Регулярно возвращаетесь к этой теме"
+                    status = "ОСНОВНОЙ ИНТЕРЕС"
                 elif percentage >= 8:
                     emoji = "💡"
-                    status = "ПЕРИОДИЧЕСКИЙ ИНТЕРЕС - Иногда поднимается в разговоре"
-                else:
+                    status = "ЗАМЕТНАЯ ТЕМА"
+                elif percentage >= 3:
                     emoji = "📌"
-                    status = "ВТОРОСТЕПЕННАЯ ТЕМА - Редко обсуждается"
+                    status = "ПЕРИОДИЧЕСКАЯ ТЕМА"
+                else:
+                    emoji = "🔸"
+                    status = "РЕДКАЯ ТЕМА"
                 
                 # Определяем emoji настроения
                 if sentiment == 'positive':
@@ -1691,26 +1695,33 @@ JSON формат:
                     sentiment_text = "позитивное отношение"
                 elif sentiment == 'negative':
                     sentiment_emoji = "😔"
-                    sentiment_text = "есть напряжение/проблемы"
+                    sentiment_text = "есть негативные моменты"
                 else:
                     sentiment_emoji = "😐"
                     sentiment_text = "нейтральное отношение"
                 
-                # Визуализация активности по периодам
-                filled_periods = "●" * active_periods
-                empty_periods = "○" * (15 - active_periods)
-                progress_bar = filled_periods + empty_periods
+                # Визуальная полоса интенсивности
+                bar_length = int(percentage / 5)  # 5% = 1 символ
+                bar_length = min(max(bar_length, 1), 20)  # От 1 до 20 символов
+                intensity_bar = "█" * bar_length
                 
-                report_lines.append(f"{emoji} **{topic_name}**")
-                report_lines.append(f"📌 {status}")
-                report_lines.append(f"📊 {progress_bar} {active_periods}/15 периодов")
-                report_lines.append(f"⚡ {percentage:.1f}% от всех ваших сообщений")
-                report_lines.append(f"{sentiment_emoji} Эмоциональная окраска: {sentiment_text}")
+                report_lines.append(f"{emoji} **{i}. {topic_name}** ({percentage:.1f}%)")
+                report_lines.append(f"   📊 {intensity_bar}")
+                report_lines.append(f"   🏷️ {status}")
+                report_lines.append(f"   {sentiment_emoji} {sentiment_text}")
+                
+                if keywords:
+                    keywords_text = ", ".join(keywords[:5])  # Показываем до 5 ключевых слов
+                    report_lines.append(f"   🔑 Ключевые слова: {keywords_text}")
+                
+                if description:
+                    report_lines.append(f"   💬 {description}")
+                
                 report_lines.append("")
             
-            report_lines.append("📖 **Объяснение:**")
-            report_lines.append("● = тема активно обсуждалась в этом периоде")
-            report_lines.append("○ = тема не обсуждалась в этом периоде")
+            report_lines.append("📊 **Легенда интенсивности:**")
+            report_lines.append("█ = каждый символ ≈ 5% от всех сообщений")
+            report_lines.append("Чем длиннее полоса, тем чаще вы обсуждаете эту тему")
             report_lines.append("")
         
         # 💰 УРОВЕНЬ 2: АНАЛИЗ ЭКСПЕРТНОСТИ И НИШ
