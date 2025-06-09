@@ -107,15 +107,32 @@ async def analyze_chat(analyzer, chat_path, limit=1000):
                     f.write(report)
                 print(f"Отчет сохранен: {report_path}")
             
-            # 🎉 ГЕНЕРИРУЕМ ГОТОВЫЙ ОТЧЕТ ДЛЯ КЛИЕНТА
-            print("Создаем готовый отчет для клиента...")
+            # 🎉 ГЕНЕРИРУЕМ ГОТОВЫЙ ОТЧЕТ ДЛЯ КЛИЕНТА (СТАРЫЙ ФОРМАТ)
+            print("Создаем готовый отчет для клиента (старый формат)...")
             client_report = analyzer.generate_comprehensive_client_report(topics_result, commercial_assessment, chat_name)
             
-            # Сохраняем готовый отчет для клиента
+            # Сохраняем готовый отчет для клиента (старый формат)
             client_report_path = os.path.join(analyzer.output_dir, f"{chat_name}_ГОТОВЫЙ_ОТЧЕТ_ДЛЯ_КЛИЕНТА.md")
             with open(client_report_path, 'w', encoding='utf-8') as f:
                 f.write(client_report)
-            print(f"🎉 ГОТОВЫЙ ОТЧЕТ ДЛЯ КЛИЕНТА сохранен: {client_report_path}")
+            print(f"🎉 ГОТОВЫЙ ОТЧЕТ ДЛЯ КЛИЕНТА (старый формат) сохранен: {client_report_path}")
+            
+            # 💎 ГЕНЕРИРУЕМ КРАСИВЫЙ ОТЧЕТ ДЛЯ КЛИЕНТА (НОВЫЙ ФОРМАТ)
+            print("Создаем красивый отчет для клиента (новый формат)...")
+            beautiful_report = analyzer.generate_beautiful_client_report(topics_result, commercial_assessment, chat_name)
+            
+            # Сохраняем красивый отчет для клиента
+            beautiful_report_path = os.path.join(analyzer.output_dir, f"{chat_name}_КРАСИВЫЙ_ОТЧЕТ_ДЛЯ_КЛИЕНТА.md")
+            with open(beautiful_report_path, 'w', encoding='utf-8') as f:
+                f.write(beautiful_report)
+            print(f"💎 КРАСИВЫЙ ОТЧЕТ ДЛЯ КЛИЕНТА сохранен: {beautiful_report_path}")
+            
+            # Показываем красивый формат тем в консоли
+            print("\n" + "="*60)
+            print("💎 ПРЕВЬЮ КРАСИВОГО ОТЧЕТА:")
+            print("="*60)
+            beautiful_topics = analyzer.generate_beautiful_topic_format(topics_result)
+            print(beautiful_topics)
             
             # Создаем простое резюме вместо визуализаций
             summary = analyzer.create_simple_summary(topics_result)

@@ -117,14 +117,20 @@ class ChatGPTAnalyzer:
             
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                
-            messages = data.get('messages', [])
-            metadata = data.get('metadata', {})
             
-            logger.info(f"✅ Загружено {len(messages)} сообщений")
-            logger.info(f"📊 Метаданные: {metadata.get('total_chats', 0)} чатов, собрано {metadata.get('collection_date', 'неизвестно')}")
-            
-            return messages
+            # Поддерживаем два формата: {'messages': [...]} и просто [...]
+            if isinstance(data, dict) and 'messages' in data:
+                messages = data.get('messages', [])
+                metadata = data.get('metadata', {})
+                logger.info(f"✅ Загружено {len(messages)} сообщений (формат объект)")
+                logger.info(f"📊 Метаданные: {metadata.get('total_chats', 0)} чатов, собрано {metadata.get('collection_date', 'неизвестно')}")
+                return messages
+            elif isinstance(data, list):
+                logger.info(f"✅ Загружено {len(data)} сообщений (формат массив)")
+                return data
+            else:
+                logger.error("❌ Неподдерживаемый формат данных")
+                return []
             
         except Exception as e:
             logger.error(f"Ошибка при загрузке оптимизированных данных: {e}")
@@ -589,11 +595,13 @@ class ChatGPTAnalyzer:
         result = list(processed_topics.values())
         result = sorted(result, key=lambda x: x.get('percentage', 0), reverse=True)
         
-        # Нормализуем проценты, чтобы сумма была 100%
-        total_percentage = sum(topic.get('percentage', 0) for topic in result)
-        if total_percentage > 0:
-            for topic in result:
-                topic['percentage'] = round((topic.get('percentage', 0) / total_percentage) * 100, 1)
+        # НЕ нормализуем проценты - оставляем реальные значения
+        # total_percentage = sum(topic.get('percentage', 0) for topic in result)
+        # if total_percentage > 0:
+        #     for topic in result:
+        #         topic['percentage'] = round((topic.get('percentage', 0) / total_percentage) * 100, 1)
+        
+        # Оставляем исходные проценты как есть - они показывают реальную долю от всех сообщений
         
         return result[:7]  # Возвращаем только топ-7 тем
         
@@ -1399,6 +1407,170 @@ JSON формат:
         if os.path.exists(checkpoint_path):
             os.remove(checkpoint_path)
             logger.info("🗑️ Checkpoint удален после успешного завершения")
+
+    def generate_beautiful_topic_format(self, topics_data: Dict) -> str:
+        """
+        Генерирует красивый формат отображения тем для клиентов
+        
+        Args:
+            topics_data: Данные анализа тем
+            
+        Returns:
+            str: Красиво отформатированный отчет
+        """
+        if not topics_data or 'topics' not in topics_data:
+            return "❌ Нет данных для отображения"
+        
+        topics = topics_data['topics']
+        if not topics:
+            return "❌ Темы не найдены"
+        
+        # Расчет покрытия периодов для каждой темы
+        total_periods = 15  # Предполагаем анализ по 15 периодам
+        
+        beautiful_output = []
+        beautiful_output.append("🎯 **АНАЛИЗ ВАШИХ ИНТЕРЕСОВ И ТЕМ**\n")
+        beautiful_output.append("=" * 50 + "\n")
+        
+        for i, topic in enumerate(topics, 1):
+            # Получаем данные темы
+            topic_name = topic.get('name', f'Тема {i}')
+            topic_percentage = topic.get('percentage', 0)
+            
+            # Определяем количество периодов на основе процента
+            # Если тема важная (>15%), она обсуждается в большинстве периодов
+            if topic_percentage >= 20:
+                periods_count = max(12, int(total_periods * 0.8))
+            elif topic_percentage >= 15:
+                periods_count = max(10, int(total_periods * 0.67))
+            elif topic_percentage >= 10:
+                periods_count = max(8, int(total_periods * 0.53))
+            elif topic_percentage >= 5:
+                periods_count = max(5, int(total_periods * 0.33))
+            else:
+                periods_count = max(2, int(total_periods * 0.15))
+            
+            # Ограничиваем количество периодов общим количеством
+            periods_count = min(periods_count, total_periods)
+            
+            # Определяем статус важности
+            if periods_count >= 12:
+                status = "🔥 ОСНОВНОЙ ИНТЕРЕС"
+                coverage_percent = int((periods_count / total_periods) * 100)
+            elif periods_count >= 8:
+                status = "⭐ ВАЖНАЯ ТЕМА"
+                coverage_percent = int((periods_count / total_periods) * 100)
+            elif periods_count >= 5:
+                status = "💡 ПЕРИОДИЧЕСКАЯ ТЕМА"
+                coverage_percent = int((periods_count / total_periods) * 100)
+            else:
+                status = "📝 РЕДКАЯ ТЕМА"
+                coverage_percent = int((periods_count / total_periods) * 100)
+            
+            # Создаем визуальную шкалу
+            filled_dots = "●" * periods_count
+            empty_dots = "○" * (total_periods - periods_count)
+            visual_scale = filled_dots + empty_dots
+            
+            # Форматируем тему
+            beautiful_output.append(f"🔥 **{topic_name}**")
+            beautiful_output.append(f"📌 {status} ({coverage_percent}% времени)")
+            beautiful_output.append(f"📊 {visual_scale} {periods_count}/{total_periods} периодов")
+            beautiful_output.append(f"⚡ Интенсивность: {topic_percentage:.1f}% при обсуждении")
+            
+            # Добавляем описание если есть
+            if topic.get('description'):
+                beautiful_output.append(f"💬 {topic['description']}")
+            
+            beautiful_output.append("")  # Пустая строка между темами
+        
+        # Добавляем общую статистику
+        beautiful_output.append("📈 **ОБЩАЯ СТАТИСТИКА**")
+        beautiful_output.append(f"🎯 Проанализировано тем: {len(topics)}")
+        beautiful_output.append(f"📊 Покрытие интересов: {sum(t.get('percentage', 0) for t in topics):.1f}%")
+        beautiful_output.append(f"⏱️ Анализируемых периодов: {total_periods}")
+        
+        return "\n".join(beautiful_output)
+
+    def generate_beautiful_client_report(self, topics_data: Dict, commercial_assessment: Dict = None, chat_name: str = "Клиент") -> str:
+        """
+        Генерирует красивый полный отчет для клиента с использованием нового формата
+        
+        Args:
+            topics_data: Данные анализа тем
+            commercial_assessment: Коммерческая оценка тем
+            chat_name: Имя клиента/чата
+            
+        Returns:
+            str: Полный красивый отчет для клиента
+        """
+        report_lines = []
+        
+        # Заголовок отчета
+        report_lines.append(f"# 🎯 ПЕРСОНАЛЬНЫЙ АНАЛИЗ ИНТЕРЕСОВ")
+        report_lines.append(f"## 👤 Клиент: {chat_name}")
+        report_lines.append(f"## 📅 Дата анализа: {datetime.now().strftime('%d.%m.%Y')}")
+        report_lines.append("\n" + "=" * 60 + "\n")
+        
+        # Добавляем красивый формат тем
+        beautiful_topics = self.generate_beautiful_topic_format(topics_data)
+        report_lines.append(beautiful_topics)
+        
+        # Добавляем коммерческую оценку если есть
+        if commercial_assessment and commercial_assessment.get('commercial_assessment'):
+            report_lines.append("\n" + "=" * 60 + "\n")
+            report_lines.append("💰 **ВОЗМОЖНОСТИ МОНЕТИЗАЦИИ**\n")
+            
+            commercial_topics = commercial_assessment['commercial_assessment']
+            for topic_assessment in commercial_topics:
+                topic_name = topic_assessment.get('topic', 'Неизвестная тема')
+                commercial_score = topic_assessment.get('commercial_score', 'Не оценено')
+                
+                # Определяем emoji для коммерческого потенциала
+                if 'высокий' in commercial_score.lower():
+                    potential_emoji = "🔥"
+                elif 'средний' in commercial_score.lower():
+                    potential_emoji = "⭐"
+                else:
+                    potential_emoji = "💡"
+                
+                report_lines.append(f"{potential_emoji} **{topic_name}**")
+                report_lines.append(f"💰 Коммерческий потенциал: {commercial_score}")
+                
+                # Добавляем продукты если есть
+                if topic_assessment.get('products'):
+                    report_lines.append("🛍️ **Возможные продукты:**")
+                    for product in topic_assessment['products'][:3]:  # Топ 3 продукта
+                        product_name = product.get('name', 'Продукт')
+                        revenue_potential = product.get('revenue_potential', 'неизвестен')
+                        report_lines.append(f"   • {product_name} (потенциал: {revenue_potential})")
+                
+                report_lines.append("")  # Пустая строка
+        
+        # Добавляем рекомендации
+        report_lines.append("\n" + "=" * 60 + "\n")
+        report_lines.append("🎯 **ПЕРСОНАЛЬНЫЕ РЕКОМЕНДАЦИИ**\n")
+        
+        if topics_data and topics_data.get('topics'):
+            top_topics = sorted(topics_data['topics'], key=lambda x: x.get('percentage', 0), reverse=True)[:3]
+            
+            report_lines.append("На основе анализа ваших интересов мы рекомендуем:")
+            report_lines.append("")
+            
+            for i, topic in enumerate(top_topics, 1):
+                topic_name = topic.get('name', f'Тема {i}')
+                percentage = topic.get('percentage', 0)
+                report_lines.append(f"**{i}. Развивайте интерес к теме \"{topic_name}\"**")
+                report_lines.append(f"   • Эта тема занимает {percentage:.1f}% ваших обсуждений")
+                report_lines.append(f"   • Высокий потенциал для углубления знаний")
+                report_lines.append("")
+        
+        # Подпись
+        report_lines.append("---")
+        report_lines.append("📊 *Отчет сгенерирован системой анализа TelegramSoul*")
+        report_lines.append(f"⏰ *Время генерации: {datetime.now().strftime('%d.%m.%Y %H:%M')}*")
+        
+        return "\n".join(report_lines)
 
 # Промпты для анализа тем
 # Промпт для анализа тематики
