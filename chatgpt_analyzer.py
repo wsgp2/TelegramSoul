@@ -583,7 +583,7 @@ class ChatGPTAnalyzer:
     
     def _aggregate_similar_topics(self, topics: List[Dict]) -> List[Dict]:
         """
-        Улучшенное объединение схожих тем с более строгими правилами
+        Универсальное объединение схожих тем на основе семантического сходства
         
         Args:
             topics (List[Dict]): Список тем для агрегации
@@ -593,82 +593,72 @@ class ChatGPTAnalyzer:
         """
         if not topics:
             return []
-            
+        
         # Импортируем модуль для сравнения строк
         import difflib
+        from collections import defaultdict
         
         # Сортируем темы по проценту, чтобы начать с самых значимых
         sorted_topics = sorted(topics, key=lambda x: x.get('percentage', 0), reverse=True)
         
-        # Словарь групп тем со строгими правилами объединения
-        topic_groups = {
-            'криптовалюты_и_инвестиции': {
-                'patterns': ['крипто', 'биткоин', 'альткоин', 'инвест', 'торгов', 'блокчейн', 'деньги', 'финанс'],
-                'merged_topics': [],
-                'final_name': 'Криптовалюты и инвестиции'
-            },
-            'путешествия_и_туризм': {
-                'patterns': ['путешеств', 'туризм', 'поездк', 'отдых', 'бали', 'тай', 'филиппин'],
-                'merged_topics': [],
-                'final_name': 'Путешествия и туризм'
-            },
-            'события_и_мероприятия': {
-                'patterns': ['событи', 'мероприят', 'встреч', 'созвон', 'нетворк', 'конференц', 'батл'],
-                'merged_topics': [],
-                'final_name': 'События и мероприятия'
-            },
-            'личное_развитие': {
-                'patterns': ['развит', 'курс', 'тренинг', 'обучен', 'альфа', 'коуч', 'семинар'],
-                'merged_topics': [],
-                'final_name': 'Личное развитие'
-            },
-            'технические_вопросы': {
-                'patterns': ['техническ', 'технолог', 'инструмент', 'софт', 'приложен', 'бот'],
-                'merged_topics': [],
-                'final_name': 'Технические вопросы'
-            }
-        }
+        # Группы для объединения схожих тем
+        topic_groups = defaultdict(list)
+        processed_indices = set()
         
-        # Несгруппированные темы
-        ungrouped_topics = []
-        
-        # Распределяем темы по группам
-        for topic in sorted_topics:
-            topic_name = topic.get('name', '').lower()
-            keywords_text = ' '.join(topic.get('keywords', [])).lower()
-            description_text = topic.get('description', '').lower()
-            full_text = f"{topic_name} {keywords_text} {description_text}"
+        # Функция для вычисления сходства между темами
+        def calculate_similarity(topic1, topic2):
+            # Сравниваем названия
+            name_similarity = difflib.SequenceMatcher(None, 
+                topic1.get('name', '').lower(), 
+                topic2.get('name', '').lower()
+            ).ratio()
             
-            # Ищем подходящую группу
-            assigned = False
-            for group_key, group_info in topic_groups.items():
-                patterns = group_info['patterns']
-                
-                # Проверяем совпадение с паттернами группы
-                matches = sum(1 for pattern in patterns if pattern in full_text)
-                
-                # Если найдено 2+ совпадения или 1 сильное совпадение в названии
-                if matches >= 2 or any(pattern in topic_name for pattern in patterns):
-                    group_info['merged_topics'].append(topic)
-                    assigned = True
-                    break
+            # Сравниваем ключевые слова
+            keywords1 = set(k.lower() for k in topic1.get('keywords', []))
+            keywords2 = set(k.lower() for k in topic2.get('keywords', []))
             
-            if not assigned:
-                ungrouped_topics.append(topic)
+            if keywords1 and keywords2:
+                keyword_intersection = len(keywords1.intersection(keywords2))
+                keyword_union = len(keywords1.union(keywords2))
+                keyword_similarity = keyword_intersection / keyword_union if keyword_union > 0 else 0
+            else:
+                keyword_similarity = 0
+            
+            # Итоговое сходство (название важнее ключевых слов)
+            return (name_similarity * 0.7) + (keyword_similarity * 0.3)
         
-        # Создаем финальные агрегированные темы
-        final_topics = []
-        
-        # Обрабатываем группы
-        for group_key, group_info in topic_groups.items():
-            if group_info['merged_topics']:
+        # Объединяем схожие темы
+        for i, topic1 in enumerate(sorted_topics):
+            if i in processed_indices:
+                continue
+                
+            current_group = [topic1]
+            processed_indices.add(i)
+            
+            for j, topic2 in enumerate(sorted_topics[i+1:], i+1):
+                if j in processed_indices:
+                    continue
+                    
+                similarity = calculate_similarity(topic1, topic2)
+                
+                # Если сходство больше 0.6, объединяем темы
+                if similarity > 0.6:
+                    current_group.append(topic2)
+                    processed_indices.add(j)
+            
+            # Если в группе больше одной темы, объединяем их
+            if len(current_group) > 1:
                 # Объединяем темы группы
-                total_percentage = sum(t.get('percentage', 0) for t in group_info['merged_topics'])
+                total_percentage = sum(t.get('percentage', 0) for t in current_group)
                 all_keywords = []
                 all_descriptions = []
                 sentiments = []
                 
-                for topic in group_info['merged_topics']:
+                # Берем название самой большой темы в группе
+                main_topic = max(current_group, key=lambda x: x.get('percentage', 0))
+                main_name = main_topic.get('name', 'Объединенная тема')
+                
+                for topic in current_group:
                     all_keywords.extend(topic.get('keywords', []))
                     all_descriptions.append(topic.get('description', ''))
                     sentiments.append(topic.get('sentiment', 'neutral'))
@@ -682,27 +672,30 @@ class ChatGPTAnalyzer:
                     sentiment_counts[s] = sentiment_counts.get(s, 0) + 1
                 final_sentiment = max(sentiment_counts, key=sentiment_counts.get)
                 
-                # Создаем объединенное описание
+                # Создаем объединенное описание (берем самое длинное)
                 best_description = max(all_descriptions, key=len) if all_descriptions else ""
                 
                 merged_topic = {
-                    'name': group_info['final_name'],
+                    'name': main_name,
                     'keywords': unique_keywords,
                     'percentage': total_percentage,
                     'sentiment': final_sentiment,
                     'description': best_description,
-                    'merged_from': len(group_info['merged_topics'])
+                    'merged_from': len(current_group)
                 }
                 
-                final_topics.append(merged_topic)
+                topic_groups['merged'].append(merged_topic)
+            else:
+                # Если тема одна, добавляем как есть
+                topic_groups['single'].append(current_group[0])
         
-        # Добавляем несгруппированные темы
-        final_topics.extend(ungrouped_topics)
+        # Собираем все темы
+        final_topics = topic_groups['merged'] + topic_groups['single']
         
         # Сортируем по убыванию процента
         final_topics = sorted(final_topics, key=lambda x: x.get('percentage', 0), reverse=True)
         
-        return final_topics[:7]  # Возвращаем только топ-7 тем
+        return final_topics[:10]  # Возвращаем топ-10 тем
         
     async def assess_commercial_potential(self, topics: Dict):
         """
@@ -1907,6 +1900,41 @@ JSON формат:
         
         return "\n".join(report_lines)
 
+    def normalize_percentages_for_client(self, topics: List[Dict]) -> List[Dict]:
+        """
+        Нормализует проценты для клиентских отчетов при необходимости
+        
+        Args:
+            topics (List[Dict]): Список тем с процентами
+            
+        Returns:
+            List[Dict]: Темы с нормализованными процентами и пометками
+        """
+        if not topics:
+            return []
+        
+        # Рассчитываем общую сумму процентов
+        total_percentage = sum(topic.get('percentage', 0) for topic in topics)
+        
+        normalized_topics = []
+        for topic in topics:
+            normalized_topic = topic.copy()
+            original_percentage = topic.get('percentage', 0)
+            
+            # Если общая сумма сильно отличается от 100%, нормализуем
+            if total_percentage > 0 and abs(total_percentage - 100) > 20:
+                normalized_percentage = (original_percentage / total_percentage) * 100
+                normalized_topic['percentage'] = round(normalized_percentage, 1)
+                normalized_topic['original_percentage'] = original_percentage
+                normalized_topic['total_analyzed'] = total_percentage
+                normalized_topic['normalized'] = True
+            else:
+                normalized_topic['normalized'] = False
+            
+            normalized_topics.append(normalized_topic)
+        
+        return normalized_topics
+
 # 🚀 ЭТАП 1: Быстрый анализ тем для всех чатов
 FAST_TOPIC_ANALYSIS_PROMPT = """
 Ты — экспертный аналитик цифрового поведения. Твоя задача — быстро и точно выделить основные темы из Telegram-переписки.
@@ -1918,12 +1946,13 @@ FAST_TOPIC_ANALYSIS_PROMPT = """
 2. Для каждой темы укажи:
    - Название темы (краткое и понятное)
    - Ключевые слова (5-8 слов максимум)
-   - Процент упоминаний (ВАЖНО: сумма всех процентов = 100%)
+   - Процент упоминаний (реальный процент от объема сообщений по теме)
    - Эмоциональная тональность (positive/negative/neutral)
    - Краткое описание (1-2 предложения)
 
 ⚡ ТРЕБОВАНИЯ:
-- Будь точным в процентах — их сумма должна быть ровно 100%
+- Указывай честные проценты на основе реального анализа данных
+- НЕ подгоняй проценты под 100% - они должны отражать реальную картину
 - Фокусируйся на содержательных темах, игнорируй бытовые мелочи
 - Группируй похожие темы вместе
 - Называй темы понятно для обычного человека
