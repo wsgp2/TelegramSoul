@@ -174,19 +174,28 @@ async def main():
     
     # 🚀 Список API ключей для параллельной обработки из переменных окружения
     api_keys = []
-    for i in range(1, 6):  # API_KEY_1 до API_KEY_5
-        key = os.getenv(f'API_KEY_{i}')
+    
+    # Сначала пробуем загрузить OPENAI_API_KEY1, OPENAI_API_KEY2, etc.
+    for i in range(1, 6):  # OPENAI_API_KEY1 до OPENAI_API_KEY5
+        key = os.getenv(f'OPENAI_API_KEY{i}')
         if key:
             api_keys.append(key)
     
-    # Если нет переменных окружения, используем основной ключ
+    # Если нет, пробуем API_KEY_1, API_KEY_2, etc.
+    if not api_keys:
+        for i in range(1, 6):  # API_KEY_1 до API_KEY_5
+            key = os.getenv(f'API_KEY_{i}')
+            if key:
+                api_keys.append(key)
+    
+    # Если нет дополнительных ключей, используем основной
     if not api_keys:
         main_key = os.getenv('OPENAI_API_KEY')
         if main_key:
             api_keys = [main_key]
         else:
             print("❌ Ошибка: Не найдены API ключи OpenAI!")
-            print("💡 Установите переменные окружения API_KEY_1, API_KEY_2, ... или OPENAI_API_KEY")
+            print("💡 Установите переменные окружения OPENAI_API_KEY1, OPENAI_API_KEY2, ... или OPENAI_API_KEY")
             return
     
     # Создаем экземпляр анализатора с множественными API ключами
@@ -321,8 +330,9 @@ async def main():
                     print(f"Нет текстовых сообщений для анализа в {chat['name']}")
                     continue
                 
-                # Анализируем темы
-                topics_result = await analyzer.analyze_topics(prepared_messages)
+                # Анализируем темы с checkpoint поддержкой
+                checkpoint_name = f"{client_name}_topics_checkpoint"
+                topics_result = await analyzer.analyze_topics(prepared_messages, checkpoint_base=checkpoint_name)
                 if not topics_result or not topics_result.get('topics'):
                     print(f"Не удалось проанализировать темы в {chat['name']}")
                     continue

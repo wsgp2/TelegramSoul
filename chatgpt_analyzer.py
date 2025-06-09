@@ -4,7 +4,7 @@
 """
 ChatGPT Telegram Chat Analyzer
 
-Этот скрипт использует OpenAI API (gpt-4.1-mini) для глубокого анализа сообщений из Telegram чатов,
+Этот скрипт использует OpenAI API (gpt-4o-mini для анализа, gpt-4o для монетизации) для глубокого анализа сообщений из Telegram чатов,
 выявления ключевых тем, трендов и возможностей монетизации на основе содержимого сообщений.
 
 Он использует продвинутые бизнес-аналитические промпты для получения структурированных результатов
@@ -57,10 +57,10 @@ MAX_TOKENS = 32000  # максимальное количество токено
 
 class ChatGPTAnalyzer:
     """
-    Класс для анализа Telegram-чатов с использованием ChatGPT (gpt-4o-mini)
+    Класс для анализа Telegram-чатов с использованием ChatGPT (gpt-4)
     """
     
-    def __init__(self, api_key=None, model="gpt-4.1-mini", api_keys=None):
+    def __init__(self, api_key=None, model="gpt-4o-mini", api_keys=None):
         """
         Инициализация анализатора
         
@@ -250,13 +250,14 @@ class ChatGPTAnalyzer:
             logger.error(f"Ошибка при вызове OpenAI API: {e}")
             raise
             
-    async def analyze_topics(self, text_messages: List[str], max_tokens_per_chunk: int = 8000):
+    async def analyze_topics(self, text_messages: List[str], max_tokens_per_chunk: int = 8000, checkpoint_base: str = None):
         """
-        Анализирует темы в сообщениях с использованием ChatGPT
+        Анализирует темы в сообщениях с использованием ChatGPT с поддержкой checkpoint
         
         Args:
             text_messages (List[str]): Список текстовых сообщений для анализа
             max_tokens_per_chunk (int): Максимальное количество токенов в одном запросе к API
+            checkpoint_base (str): Базовое имя для checkpoint файлов
             
         Returns:
             Dict: Результаты анализа тем в формате JSON
@@ -288,12 +289,40 @@ class ChatGPTAnalyzer:
         
         logger.info(f"Сообщения разделены на {len(chunk_messages)} частей для анализа")
         
-        # 🚀 ПАРАЛЛЕЛЬНАЯ ОБРАБОТКА с использованием нескольких API ключей
+        # 🔄 ПРОВЕРЯЕМ CHECKPOINT
         all_topics = []
+        start_chunk = 0
+        processed_results = []
+        
+        if checkpoint_base:
+            checkpoint_data = self.load_checkpoint(checkpoint_base)
+            if checkpoint_data and checkpoint_data.get('total_chunks') == len(chunk_messages):
+                processed_results = checkpoint_data.get('chunk_results', [])
+                start_chunk = checkpoint_data.get('last_processed_chunk', 0) + 1
+                logger.info(f"🔄 ВОССТАНАВЛИВАЕМ анализ с части {start_chunk + 1} из {len(chunk_messages)}")
+                
+                # Добавляем уже обработанные темы
+                for result in processed_results:
+                    if isinstance(result, list):
+                        all_topics.extend(result)
+                        
+            elif checkpoint_data:
+                logger.warning("⚠️ Checkpoint найден, но количество частей не совпадает. Начинаем заново.")
+                self.cleanup_checkpoint(checkpoint_base)
+        
+        # Обрабатываем только оставшиеся части
+        remaining_chunks = chunk_messages[start_chunk:]
+        if not remaining_chunks:
+            logger.info("✅ Все части уже обработаны! Завершаем анализ...")
+            aggregated_topics = self._aggregate_similar_topics(all_topics)
+            if checkpoint_base:
+                self.cleanup_checkpoint(checkpoint_base)
+            return {"topics": aggregated_topics}
         
         # Функция для обработки одного chunk'а
         async def process_chunk(chunk_text, chunk_index, api_key):
-            logger.info(f"🔄 Анализируем часть {chunk_index+1} из {len(chunk_messages)} (API ключ #{self.api_keys.index(api_key)+1})")
+            real_index = start_chunk + chunk_index
+            logger.info(f"🔄 Анализируем часть {real_index+1} из {len(chunk_messages)} (API ключ #{self.api_keys.index(api_key)+1})")
             
             messages = [
                 {"role": "system", "content": "Вы - эксперт по тематическому анализу и выявлению трендов в данных."},
@@ -307,16 +336,16 @@ class ChatGPTAnalyzer:
                 # Более надежный парсинг JSON
                 chunk_topics = self.extract_json_from_text(content)
                 topics_found = chunk_topics.get("topics", [])
-                logger.info(f"✅ Часть {chunk_index+1} обработана, найдено {len(topics_found)} тем")
+                logger.info(f"✅ Часть {real_index+1} обработана, найдено {len(topics_found)} тем")
                 return topics_found
                     
             except Exception as e:
-                logger.error(f"❌ Ошибка при анализе части {chunk_index+1}: {e}")
+                logger.error(f"❌ Ошибка при анализе части {real_index+1}: {e}")
                 return []
         
         # Создаем задачи для параллельной обработки
         tasks = []
-        for i, chunk in enumerate(chunk_messages):
+        for i, chunk in enumerate(remaining_chunks):
             # Выбираем API ключ по кругу
             api_key = self.api_keys[i % len(self.api_keys)]
             task = process_chunk(chunk, i, api_key)
@@ -326,20 +355,34 @@ class ChatGPTAnalyzer:
         batch_size = len(self.api_keys)
         for i in range(0, len(tasks), batch_size):
             batch = tasks[i:i+batch_size]
-            logger.info(f"🚀 Запускаем параллельную обработку группы {i//batch_size+1}, задач: {len(batch)}")
+            batch_start_idx = start_chunk + i
+            logger.info(f"🚀 Запускаем параллельную обработку группы {i//batch_size+1}, задач: {len(batch)} (части {batch_start_idx+1}-{batch_start_idx+len(batch)})")
             
             # Ждем завершения всех задач в группе
             results = await asyncio.gather(*batch, return_exceptions=True)
             
             # Обрабатываем результаты
-            for result in results:
+            for j, result in enumerate(results):
+                current_chunk_idx = batch_start_idx + j
+                
                 if isinstance(result, list):
                     all_topics.extend(result)
+                    processed_results.append(result)
+                    
+                    # 💾 СОХРАНЯЕМ CHECKPOINT после каждой группы
+                    if checkpoint_base:
+                        self.save_checkpoint(processed_results, current_chunk_idx, len(chunk_messages), checkpoint_base)
+                        
                 elif isinstance(result, Exception):
-                    logger.error(f"Исключение в задаче: {result}")
+                    logger.error(f"Исключение в задаче части {current_chunk_idx+1}: {result}")
+                    processed_results.append([])  # Пустой результат для сохранения порядка
                 
         # Объединяем результаты и агрегируем схожие темы
         aggregated_topics = self._aggregate_similar_topics(all_topics)
+        
+        # 🗑️ Удаляем checkpoint после успешного завершения
+        if checkpoint_base:
+            self.cleanup_checkpoint(checkpoint_base)
         
         logger.info(f"Анализ тем завершен. Выявлено {len(aggregated_topics)} уникальных тем")
         return {"topics": aggregated_topics}
@@ -622,7 +665,8 @@ JSON формат:
                 {"role": "user", "content": prompt}
             ]
             
-            response = await self.call_openai_api(messages, temperature=0.1)
+            # Используем самую мощную модель GPT-4o для коммерческого анализа
+            response = await self.call_openai_api_with_model(messages, model="gpt-4o", temperature=0.1)
             
             if response and response.get('choices'):
                 content = response['choices'][0]['message']['content']
@@ -1265,6 +1309,96 @@ JSON формат:
             report.append(f"- {step}")
         
         report.append(f"\n**💡 Почему вам подходит:** {topic.get('why_this_person', 'Анализ интересов показывает потенциал в данной области.')}\n\n---\n")
+
+    async def call_openai_api_with_model(self, messages, model="gpt-4o", temperature=0.3):
+        """
+        Делает вызов к OpenAI API с указанной моделью
+        
+        Args:
+            messages: Список сообщений для API
+            model: Конкретная модель для использования
+            temperature: Температура генерации
+            
+        Returns:
+            dict: Ответ от API
+        """
+        try:
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=self.api_key)
+            
+            response = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=4000
+            )
+            
+            return {
+                'choices': [{
+                    'message': {
+                        'content': response.choices[0].message.content
+                    }
+                }]
+            }
+        except Exception as e:
+            logger.error(f"Ошибка при вызове OpenAI API с моделью {model}: {e}")
+            # Fallback на обычный метод
+            return await self.call_openai_api(messages, temperature)
+
+    def save_checkpoint(self, chunk_results: List, chunk_index: int, total_chunks: int, filename_base: str):
+        """
+        Сохраняет checkpoint для восстановления анализа
+        
+        Args:
+            chunk_results: Результаты обработанных частей
+            chunk_index: Текущий индекс части
+            total_chunks: Общее количество частей  
+            filename_base: Базовое имя файла
+        """
+        checkpoint_data = {
+            'chunk_results': chunk_results,
+            'last_processed_chunk': chunk_index,
+            'total_chunks': total_chunks,
+            'timestamp': datetime.now().isoformat(),
+            'filename_base': filename_base
+        }
+        
+        checkpoint_path = os.path.join(self.output_dir, f"{filename_base}_checkpoint.json")
+        with open(checkpoint_path, 'w', encoding='utf-8') as f:
+            json.dump(checkpoint_data, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"💾 Checkpoint сохранен: часть {chunk_index}/{total_chunks}")
+    
+    def load_checkpoint(self, filename_base: str) -> Dict:
+        """
+        Загружает checkpoint для восстановления анализа
+        
+        Args:
+            filename_base: Базовое имя файла
+            
+        Returns:
+            Dict: Данные checkpoint или None если не найден
+        """
+        checkpoint_path = os.path.join(self.output_dir, f"{filename_base}_checkpoint.json")
+        
+        if os.path.exists(checkpoint_path):
+            try:
+                with open(checkpoint_path, 'r', encoding='utf-8') as f:
+                    checkpoint_data = json.load(f)
+                
+                logger.info(f"📂 Найден checkpoint: восстанавливаем с части {checkpoint_data.get('last_processed_chunk', 0) + 1}")
+                return checkpoint_data
+            except Exception as e:
+                logger.error(f"Ошибка при загрузке checkpoint: {e}")
+        
+        return None
+    
+    def cleanup_checkpoint(self, filename_base: str):
+        """Удаляет checkpoint после успешного завершения"""
+        checkpoint_path = os.path.join(self.output_dir, f"{filename_base}_checkpoint.json")
+        if os.path.exists(checkpoint_path):
+            os.remove(checkpoint_path)
+            logger.info("🗑️ Checkpoint удален после успешного завершения")
 
 # Промпты для анализа тем
 # Промпт для анализа тематики
