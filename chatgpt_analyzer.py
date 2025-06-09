@@ -1425,6 +1425,18 @@ JSON формат:
         if not topics:
             return "❌ Темы не найдены"
         
+        # Нормализуем проценты - приводим к разумным значениям
+        total_raw_percentage = sum(t.get('percentage', 0) for t in topics)
+        
+        # Если сумма процентов больше 100%, нормализуем
+        if total_raw_percentage > 100:
+            normalization_factor = 100 / total_raw_percentage
+            for topic in topics:
+                topic['normalized_percentage'] = topic.get('percentage', 0) * normalization_factor
+        else:
+            for topic in topics:
+                topic['normalized_percentage'] = topic.get('percentage', 0)
+        
         # Расчет покрытия периодов для каждой темы
         total_periods = 15  # Предполагаем анализ по 15 периодам
         
@@ -1432,20 +1444,22 @@ JSON формат:
         beautiful_output.append("🎯 **АНАЛИЗ ВАШИХ ИНТЕРЕСОВ И ТЕМ**\n")
         beautiful_output.append("=" * 50 + "\n")
         
-        for i, topic in enumerate(topics, 1):
+        # Сортируем темы по нормализованному проценту
+        sorted_topics = sorted(topics, key=lambda x: x.get('normalized_percentage', 0), reverse=True)
+        
+        for i, topic in enumerate(sorted_topics, 1):
             # Получаем данные темы
             topic_name = topic.get('name', f'Тема {i}')
-            topic_percentage = topic.get('percentage', 0)
+            normalized_percentage = topic.get('normalized_percentage', 0)
             
-            # Определяем количество периодов на основе процента
-            # Если тема важная (>15%), она обсуждается в большинстве периодов
-            if topic_percentage >= 20:
+            # Определяем количество периодов на основе нормализованного процента
+            if normalized_percentage >= 20:
                 periods_count = max(12, int(total_periods * 0.8))
-            elif topic_percentage >= 15:
+            elif normalized_percentage >= 15:
                 periods_count = max(10, int(total_periods * 0.67))
-            elif topic_percentage >= 10:
+            elif normalized_percentage >= 10:
                 periods_count = max(8, int(total_periods * 0.53))
-            elif topic_percentage >= 5:
+            elif normalized_percentage >= 5:
                 periods_count = max(5, int(total_periods * 0.33))
             else:
                 periods_count = max(2, int(total_periods * 0.15))
@@ -1476,7 +1490,7 @@ JSON формат:
             beautiful_output.append(f"🔥 **{topic_name}**")
             beautiful_output.append(f"📌 {status} ({coverage_percent}% времени)")
             beautiful_output.append(f"📊 {visual_scale} {periods_count}/{total_periods} периодов")
-            beautiful_output.append(f"⚡ Интенсивность: {topic_percentage:.1f}% при обсуждении")
+            beautiful_output.append(f"⚡ Интенсивность: {normalized_percentage:.1f}% при обсуждении")
             
             # Добавляем описание если есть
             if topic.get('description'):
@@ -1484,10 +1498,11 @@ JSON формат:
             
             beautiful_output.append("")  # Пустая строка между темами
         
-        # Добавляем общую статистику
+        # Добавляем общую статистику с нормализованными данными
+        normalized_total = sum(t.get('normalized_percentage', 0) for t in topics)
         beautiful_output.append("📈 **ОБЩАЯ СТАТИСТИКА**")
         beautiful_output.append(f"🎯 Проанализировано тем: {len(topics)}")
-        beautiful_output.append(f"📊 Покрытие интересов: {sum(t.get('percentage', 0) for t in topics):.1f}%")
+        beautiful_output.append(f"📊 Покрытие интересов: {normalized_total:.1f}%")
         beautiful_output.append(f"⏱️ Анализируемых периодов: {total_periods}")
         
         return "\n".join(beautiful_output)
@@ -1552,14 +1567,26 @@ JSON формат:
         report_lines.append("🎯 **ПЕРСОНАЛЬНЫЕ РЕКОМЕНДАЦИИ**\n")
         
         if topics_data and topics_data.get('topics'):
-            top_topics = sorted(topics_data['topics'], key=lambda x: x.get('percentage', 0), reverse=True)[:3]
+            # Нормализуем проценты для рекомендаций
+            topics = topics_data['topics']
+            total_raw_percentage = sum(t.get('percentage', 0) for t in topics)
+            
+            if total_raw_percentage > 100:
+                normalization_factor = 100 / total_raw_percentage
+                for topic in topics:
+                    topic['normalized_percentage'] = topic.get('percentage', 0) * normalization_factor
+            else:
+                for topic in topics:
+                    topic['normalized_percentage'] = topic.get('percentage', 0)
+            
+            top_topics = sorted(topics, key=lambda x: x.get('normalized_percentage', 0), reverse=True)[:3]
             
             report_lines.append("На основе анализа ваших интересов мы рекомендуем:")
             report_lines.append("")
             
             for i, topic in enumerate(top_topics, 1):
                 topic_name = topic.get('name', f'Тема {i}')
-                percentage = topic.get('percentage', 0)
+                percentage = topic.get('normalized_percentage', 0)
                 report_lines.append(f"**{i}. Развивайте интерес к теме \"{topic_name}\"**")
                 report_lines.append(f"   • Эта тема занимает {percentage:.1f}% ваших обсуждений")
                 report_lines.append(f"   • Высокий потенциал для углубления знаний")
