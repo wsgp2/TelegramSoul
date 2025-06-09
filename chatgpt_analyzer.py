@@ -583,7 +583,7 @@ class ChatGPTAnalyzer:
     
     def _aggregate_similar_topics(self, topics: List[Dict]) -> List[Dict]:
         """
-        Объединяет схожие темы на основе схожести названий и ключевых слов
+        Улучшенное объединение схожих тем с более строгими правилами
         
         Args:
             topics (List[Dict]): Список тем для агрегации
@@ -594,54 +594,115 @@ class ChatGPTAnalyzer:
         if not topics:
             return []
             
+        # Импортируем модуль для сравнения строк
+        import difflib
+        
         # Сортируем темы по проценту, чтобы начать с самых значимых
         sorted_topics = sorted(topics, key=lambda x: x.get('percentage', 0), reverse=True)
         
-        # Словарь для отслеживания уже объединенных тем
-        processed_topics = {}
+        # Словарь групп тем со строгими правилами объединения
+        topic_groups = {
+            'криптовалюты_и_инвестиции': {
+                'patterns': ['крипто', 'биткоин', 'альткоин', 'инвест', 'торгов', 'блокчейн', 'деньги', 'финанс'],
+                'merged_topics': [],
+                'final_name': 'Криптовалюты и инвестиции'
+            },
+            'путешествия_и_туризм': {
+                'patterns': ['путешеств', 'туризм', 'поездк', 'отдых', 'бали', 'тай', 'филиппин'],
+                'merged_topics': [],
+                'final_name': 'Путешествия и туризм'
+            },
+            'события_и_мероприятия': {
+                'patterns': ['событи', 'мероприят', 'встреч', 'созвон', 'нетворк', 'конференц', 'батл'],
+                'merged_topics': [],
+                'final_name': 'События и мероприятия'
+            },
+            'личное_развитие': {
+                'patterns': ['развит', 'курс', 'тренинг', 'обучен', 'альфа', 'коуч', 'семинар'],
+                'merged_topics': [],
+                'final_name': 'Личное развитие'
+            },
+            'технические_вопросы': {
+                'patterns': ['техническ', 'технолог', 'инструмент', 'софт', 'приложен', 'бот'],
+                'merged_topics': [],
+                'final_name': 'Технические вопросы'
+            }
+        }
         
+        # Несгруппированные темы
+        ungrouped_topics = []
+        
+        # Распределяем темы по группам
         for topic in sorted_topics:
             topic_name = topic.get('name', '').lower()
-            keywords = set([k.lower() for k in topic.get('keywords', [])])
+            keywords_text = ' '.join(topic.get('keywords', [])).lower()
+            description_text = topic.get('description', '').lower()
+            full_text = f"{topic_name} {keywords_text} {description_text}"
             
-            # Проверяем, есть ли уже похожая тема
-            found_match = False
-            for key, existing_topic in processed_topics.items():
-                existing_name = existing_topic.get('name', '').lower()
-                existing_keywords = set([k.lower() for k in existing_topic.get('keywords', [])])
+            # Ищем подходящую группу
+            assigned = False
+            for group_key, group_info in topic_groups.items():
+                patterns = group_info['patterns']
                 
-                # Если есть пересечение в ключевых словах или названия похожи
-                keyword_similarity = len(keywords.intersection(existing_keywords)) / max(len(keywords), len(existing_keywords)) if keywords and existing_keywords else 0
-                name_similarity = difflib.SequenceMatcher(None, topic_name, existing_name).ratio()
+                # Проверяем совпадение с паттернами группы
+                matches = sum(1 for pattern in patterns if pattern in full_text)
                 
-                if keyword_similarity > 0.3 or name_similarity > 0.7:
-                    # Объединяем темы
-                    new_percentage = (existing_topic.get('percentage', 0) + topic.get('percentage', 0))
-                    existing_topic['percentage'] = new_percentage
-                    
-                    # Расширяем список ключевых слов
-                    unique_keywords = list(set(existing_topic.get('keywords', []) + topic.get('keywords', [])))
-                    existing_topic['keywords'] = unique_keywords[:10]  # Ограничиваем количество ключевых слов
-                    
-                    found_match = True
+                # Если найдено 2+ совпадения или 1 сильное совпадение в названии
+                if matches >= 2 or any(pattern in topic_name for pattern in patterns):
+                    group_info['merged_topics'].append(topic)
+                    assigned = True
                     break
             
-            if not found_match:
-                processed_topics[topic_name] = topic
+            if not assigned:
+                ungrouped_topics.append(topic)
         
-        # Преобразуем в список и сортируем по убыванию процента
-        result = list(processed_topics.values())
-        result = sorted(result, key=lambda x: x.get('percentage', 0), reverse=True)
+        # Создаем финальные агрегированные темы
+        final_topics = []
         
-        # НЕ нормализуем проценты - оставляем реальные значения
-        # total_percentage = sum(topic.get('percentage', 0) for topic in result)
-        # if total_percentage > 0:
-        #     for topic in result:
-        #         topic['percentage'] = round((topic.get('percentage', 0) / total_percentage) * 100, 1)
+        # Обрабатываем группы
+        for group_key, group_info in topic_groups.items():
+            if group_info['merged_topics']:
+                # Объединяем темы группы
+                total_percentage = sum(t.get('percentage', 0) for t in group_info['merged_topics'])
+                all_keywords = []
+                all_descriptions = []
+                sentiments = []
+                
+                for topic in group_info['merged_topics']:
+                    all_keywords.extend(topic.get('keywords', []))
+                    all_descriptions.append(topic.get('description', ''))
+                    sentiments.append(topic.get('sentiment', 'neutral'))
+                
+                # Убираем дубли ключевых слов и берем самые важные
+                unique_keywords = list(dict.fromkeys(all_keywords))[:8]
+                
+                # Определяем общую тональность
+                sentiment_counts = {'positive': 0, 'negative': 0, 'neutral': 0}
+                for s in sentiments:
+                    sentiment_counts[s] = sentiment_counts.get(s, 0) + 1
+                final_sentiment = max(sentiment_counts, key=sentiment_counts.get)
+                
+                # Создаем объединенное описание
+                best_description = max(all_descriptions, key=len) if all_descriptions else ""
+                
+                merged_topic = {
+                    'name': group_info['final_name'],
+                    'keywords': unique_keywords,
+                    'percentage': total_percentage,
+                    'sentiment': final_sentiment,
+                    'description': best_description,
+                    'merged_from': len(group_info['merged_topics'])
+                }
+                
+                final_topics.append(merged_topic)
         
-        # Оставляем исходные проценты как есть - они показывают реальную долю от всех сообщений
+        # Добавляем несгруппированные темы
+        final_topics.extend(ungrouped_topics)
         
-        return result[:7]  # Возвращаем только топ-7 тем
+        # Сортируем по убыванию процента
+        final_topics = sorted(final_topics, key=lambda x: x.get('percentage', 0), reverse=True)
+        
+        return final_topics[:7]  # Возвращаем только топ-7 тем
         
     async def assess_commercial_potential(self, topics: Dict):
         """
@@ -1754,40 +1815,77 @@ JSON формат:
                 report_lines.append("")
         
         # 🎯 ПЕРСОНАЛЬНЫЕ РЕКОМЕНДАЦИИ
-        if topics_data:
+        expertise_data = unified_data.get('expertise_analysis', [])
+        if expertise_data:
             report_lines.append("\n" + "═" * 70 + "\n")
             report_lines.append("## 🎯 ПЕРСОНАЛЬНЫЕ РЕКОМЕНДАЦИИ")
             report_lines.append("")
             
-            top_topics = sorted(topics_data, key=lambda x: x.get('normalized_percentage', 0), reverse=True)[:3]
+            # Сортируем по коммерческому потенциалу И готовности к монетизации
+            priority_topics = []
+            for analysis in expertise_data:
+                topic_name = analysis.get('topic', '')
+                commercial_potential = analysis.get('commercial_potential', 'low')
+                monetization_readiness = analysis.get('monetization_readiness', 'long_term')
+                expertise_level = analysis.get('expertise_level', 'beginner')
+                
+                # Рассчитываем приоритет (0-10)
+                priority_score = 0
+                
+                # Баллы за коммерческий потенциал
+                if commercial_potential == 'high':
+                    priority_score += 4
+                elif commercial_potential == 'medium':
+                    priority_score += 2
+                
+                # Баллы за готовность к монетизации
+                if monetization_readiness == 'ready':
+                    priority_score += 3
+                elif monetization_readiness == 'need_development':
+                    priority_score += 1
+                
+                # Баллы за экспертность
+                if expertise_level == 'expert':
+                    priority_score += 3
+                elif expertise_level == 'advanced':
+                    priority_score += 2
+                else:
+                    priority_score += 1
+                
+                priority_topics.append({
+                    'topic': topic_name,
+                    'analysis': analysis,
+                    'priority': priority_score
+                })
             
-            report_lines.append("На основе полного анализа вашей цифровой души мы рекомендуем:")
+            # Сортируем по приоритету
+            priority_topics.sort(key=lambda x: x['priority'], reverse=True)
+            
+            report_lines.append("На основе анализа экспертности и коммерческого потенциала рекомендуем:")
             report_lines.append("")
             
-            for i, topic in enumerate(top_topics, 1):
-                topic_name = topic.get('name', f'Тема {i}')
-                percentage = topic.get('normalized_percentage', 0)
-                commercial_potential = topic.get('commercial_potential', 'low')
+            for i, item in enumerate(priority_topics[:3], 1):
+                analysis = item['analysis']
+                topic_name = analysis.get('topic', f'Тема {i}')
+                commercial_potential = analysis.get('commercial_potential', 'low')
+                monetization_readiness = analysis.get('monetization_readiness', 'long_term')
+                expertise_level = analysis.get('expertise_level', 'beginner')
                 
-                # Определяем рекомендацию
-                if percentage >= 20:
-                    focus_rec = "Это ваша основная страсть - развивайте её максимально"
-                elif percentage >= 15:
-                    focus_rec = "У вас есть устойчивый интерес - можно углубляться"
+                # Формируем логичную рекомендацию
+                if expertise_level == 'expert' and commercial_potential == 'high' and monetization_readiness == 'ready':
+                    rec = "🚀 НАЧИНАЙТЕ МОНЕТИЗАЦИЮ НЕМЕДЛЕННО! У вас есть все для успеха"
+                elif expertise_level in ['expert', 'advanced'] and commercial_potential in ['high', 'medium']:
+                    rec = "💪 Развивайте активно - у вас отличные перспективы"
+                elif commercial_potential == 'high' and expertise_level == 'beginner':
+                    rec = "📚 Сначала углубите знания, потом монетизируйте"
+                elif expertise_level in ['expert', 'advanced'] and commercial_potential == 'low':
+                    rec = "🎯 Развивайте для души, монетизация не приоритет"
                 else:
-                    focus_rec = "Периодический интерес - подходит для экспериментов"
+                    rec = "🌱 Развивайтесь постепенно, оценивайте возможности"
                 
-                # Добавляем коммерческую рекомендацию
-                if commercial_potential == 'high':
-                    business_rec = "💰 Высокий потенциал монетизации - стоит инвестировать время и ресурсы"
-                elif commercial_potential == 'medium':
-                    business_rec = "💡 Средний потенциал - можно попробовать небольшие проекты"
-                else:
-                    business_rec = "🎯 Развивайте для души, коммерческий потенциал ограничен"
-                
-                report_lines.append(f"**{i}. Фокус на \"{topic_name}\" ({percentage:.1f}%)**")
-                report_lines.append(f"   📈 {focus_rec}")
-                report_lines.append(f"   {business_rec}")
+                report_lines.append(f"**{i}. {topic_name}**")
+                report_lines.append(f"   🎯 Уровень: {expertise_level} | Потенциал: {commercial_potential} | Готовность: {monetization_readiness}")
+                report_lines.append(f"   💡 **Рекомендация:** {rec}")
                 report_lines.append("")
         
         # ПОДПИСЬ
@@ -1886,17 +1984,17 @@ FINAL_ANALYSIS_PROMPT = """
     }}
   ],
   "psychological_analysis": {{
-    "system_archetype": "Метафорическое описание архетипа пользователя",
-    "behavior_patterns": [
+    "system_model": "Метафорическое описание архетипа пользователя - кто он по сути",
+    "patterns": [
       {{
         "name": "Название паттерна",
-        "origin": "Возможное происхождение",
-        "manifests_in_topics": ["тема1", "тема2"],
-        "blocking_effect": "Как именно блокирует развитие",
+        "origin": "Возможное происхождение (семья/культура/травма/социум)",
+        "related_topics": ["тема1", "тема2"],
+        "block_effect": "Как именно блокирует развитие и рост",
         "blind_spot": "Какую слепую зону создает"
       }}
     ],
-    "transformation_key": "Ключевая рекомендация для трансформации и роста"
+    "transformation_hint": "Ключевая рекомендация для трансформации и преодоления ограничений"
   }}
 }}
 """
